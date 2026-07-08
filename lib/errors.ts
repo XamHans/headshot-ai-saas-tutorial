@@ -6,6 +6,7 @@ export const ErrorCode = {
   // Auth (401/403)
   UNAUTHORIZED: 'UNAUTHORIZED',
   FORBIDDEN: 'FORBIDDEN',
+  DISPOSABLE_EMAIL: 'DISPOSABLE_EMAIL',
 
   // Not Found (404)
   NOT_FOUND: 'NOT_FOUND',
@@ -34,6 +35,7 @@ export const errorCodeToStatus: Record<ErrorCode, number> = {
   INVALID_JSON: 400,
   UNAUTHORIZED: 401,
   FORBIDDEN: 403,
+  DISPOSABLE_EMAIL: 400,
   NOT_FOUND: 404,
   POST_NOT_FOUND: 404,
   USER_NOT_FOUND: 404,

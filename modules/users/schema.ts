@@ -19,6 +19,7 @@ export const user = tableHelper('user', {
   bio: text('bio'),
   provider: text('provider'),
   providerId: text('provider_id'),
+  biometricConsentAt: timestamp('biometric_consent_at'),
   createdAt: timestamp('created_at')
     .$defaultFn(() => new Date())
     .notNull(),
