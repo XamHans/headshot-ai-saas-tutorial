@@ -1,8 +1,8 @@
+import { z } from 'zod';
 import { withAuth, withHandler } from '@/lib/api/handlers';
 import { parseRequestBody, parseWith } from '@/lib/validation/parse';
 import { updatePostSchema } from '@/modules/posts/schemas';
 import { postService } from '@/modules/posts/services/post.service';
-import { z } from 'zod';
 
 const idParamSchema = z.object({
   id: z.string().min(1),

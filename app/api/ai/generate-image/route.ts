@@ -1,9 +1,9 @@
 import { google } from '@ai-sdk/google';
 import { generateText } from 'ai';
+import { z } from 'zod';
+import { withAITelemetry } from '@/lib/ai/telemetry';
 import { withAuth } from '@/lib/api/handlers';
 import { parseRequestBody } from '@/lib/validation/parse';
-import { withAITelemetry } from '@/lib/ai/telemetry';
-import { z } from 'zod';
 
 const generateImageSchema = z.object({
   prompt: z.string().min(1),
@@ -15,7 +15,7 @@ export const POST = withAuth(async (session, req, context) => {
 
   const { prompt } = bodyResult.data;
 
-  // We are creating a logger inside the handler if needed, but withAuth signature 
+  // We are creating a logger inside the handler if needed, but withAuth signature
   // currently doesn't pass a logger. We can use console or rely on telemetry.
   // Ideally, if logging is critical, we should inject it or adapt withAuth.
 

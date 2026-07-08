@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { getTestDb } from '@/tests/utils/test-database';
 import { createLogger } from '@/lib/logger';
-import { createUserService } from '../services/user.service';
-import type { UserService } from '../services/user.service';
 import type { ServiceContext } from '@/lib/services/context';
+import { getTestDb } from '@/tests/utils/test-database';
+import type { UserService } from '../services/user.service';
+import { createUserService } from '../services/user.service';
 
 describe('UserService', () => {
   let userService: UserService;

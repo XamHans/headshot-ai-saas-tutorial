@@ -1,7 +1,7 @@
 import type React from 'react';
 import { Sidebar } from '@/components/sidebar';
 
-import { Toaster } from "@/components/ui/sonner"
+import { Toaster } from '@/components/ui/sonner';
 
 export default function MainLayout({
   children,

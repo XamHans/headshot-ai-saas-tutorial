@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { toast } from 'sonner';
+import { useCreatePost, useUpdatePost } from '@/app/(main)/posts/hooks/use-posts';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -14,8 +16,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
-import { toast } from 'sonner';
-import { useCreatePost, useUpdatePost } from '@/app/(main)/posts/hooks/use-posts';
 import type { Post } from '@/modules/posts/types';
 
 interface PostFormDialogProps {

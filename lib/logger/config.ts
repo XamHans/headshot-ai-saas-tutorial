@@ -16,9 +16,9 @@ export const getLoggerConfig = (): LoggerConfig => {
 
   // Default log levels per environment
   const defaultLevels = {
-    test: 'silent',      // No logs in tests by default
+    test: 'silent', // No logs in tests by default
     development: 'debug', // Verbose in development
-    production: 'info',   // Moderate in production
+    production: 'info', // Moderate in production
   };
 
   return {

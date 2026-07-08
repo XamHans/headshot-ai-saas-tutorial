@@ -46,6 +46,21 @@ Print a compact board inside a code fence so the user sees the plan at a glance:
 - **Next slice** = the first incomplete (`☐`/unchecked) slice in `STATUS.md`. Respect `Blocked by`: if
   the next slice's blockers aren't all `✅`, say so and stop.
 
+## 1.5 · Pre-flight: prerequisites gate (before any git)
+
+Open the NEXT slice file and read its **`## Prerequisites`** section *before* touching git.
+
+- If it reads `None — no external setup required.`, continue to §2.
+- Otherwise, run each prerequisite's **Verify present** check (confirm the named env var is set, the
+  bucket / API / webhook actually responds). A **Required input** counts as satisfied only when it's
+  genuinely configured — not merely documented in the slice.
+- **If any required input is missing, STOP.** Do not branch, do not spawn the subagent. Print exactly
+  what's missing and the input you need from the user — the env var / credential name and how to obtain it,
+  taken straight from the slice's Prerequisites — then ask them to provide it and re-run `/implement`.
+  **Never stub, mock, or fake an external service to get past this gate.**
+
+This keeps the tree clean: a slice that can't be verified never gets a branch.
+
 ## 2 · Set up the slice branch (git)
 
 - **Safety first.** Run `git status --porcelain`. If the tree has uncommitted changes unrelated to this
@@ -65,19 +80,26 @@ Print a compact board inside a code fence so the user sees the plan at a glance:
   `high`/`xhigh`/`max` → `tdd-high`. If frontmatter is missing, default to `tdd-medium`.
 - **Spawn it via the Agent tool**, passing the slice's `model` (alias `opus`/`sonnet`/`haiku`) as the
   `model` parameter (omit to let it inherit if no frontmatter model). The prompt must contain:
-  - the slice's **What to build** and **all its acceptance criteria** (the verification contract),
+  - the slice's **What to build**,
+  - the slice's **Verification contract** — the Gherkin behaviour scenarios (happy path + edge cases),
+    which the subagent must turn into **Playwright** tests and drive **red-first** (one failing scenario →
+    minimal code → refactor). The behaviour tests assert **observable** outcomes only — never internals —
+    so the contract stays implementation-independent,
+  - the slice's **Implementation notes (TDD)** as advisory red→green→refactor guidance (not a spec),
   - the project's **verify command(s)** for this surface,
   - the red-first TDD contract (one test → one impl, vertical, no horizontal slicing),
   - any applicable project rules under `<root>/.claude/rules/` (or tell it to read them),
-  - the hard constraints: **do not run git, do not commit/branch, do not edit STATUS/plan docs; return
-    a structured report.**
+  - the hard constraints: **do not run git, do not commit/branch, do not edit STATUS/plan docs; do not
+    stub or fake any external service the Prerequisites require; return a structured report.**
 - **No slice frontmatter at all** (e.g. a hand-written plan) → fall back to the red-first TDD loop in
   the main loop yourself, on the slice branch.
 
 ## 4 · Verify (the orchestrator owns the gate)
 
 - **Re-run the slice's verify command(s) yourself.** The subagent's report is a claim, not proof —
-  trust but verify.
+  trust but verify. This includes the slice's **Playwright behaviour scenarios** (every Gherkin scenario
+  in the verification contract) plus `pnpm check` and the unit/integration tests. Every scenario must
+  pass before the slice is done.
 - If anything fails (or a verify can't run, e.g. a missing env var), say so plainly, **do not merge or
   mark the slice done**, stay on the slice branch, and stop. Never imply an unrun check passed.
 
@@ -87,8 +109,8 @@ Print a compact board inside a code fence so the user sees the plan at a glance:
   revert the project's unrelated dirty files. Commit on the slice branch with a message tracing to the
   slice.
 - Update `STATUS.md` (flip the slice to `✅`, advance the NEXT marker) and tick the slice file's
-  acceptance-criteria boxes. Commit that on the slice branch too. Keep it honest — only mark done if
-  verify actually passed in §4.
+  **verification-contract scenario boxes** (plus any Prerequisites boxes now satisfied). Commit that on
+  the slice branch too. Keep it honest — only tick a scenario whose Playwright test actually passed in §4.
 - **Merge the slice branch into the feature branch**: `git checkout feature/<plan-name>` then
   `git merge --no-ff slice/<NN>-<slug>` (a visible merge commit per slice).
 - If a remote exists, `git push` the feature branch (and optionally the slice branch). **Never
@@ -125,8 +147,10 @@ If `<root>/.claude/implement.md` is missing, this project hasn't been wired for 
   `slice/<NN>-<slug>`). Never touch `main`/`master`/the base except as the branch-off point; never
   force-push; push only when a remote is configured. Never switch branches over a dirty unrelated tree —
   stop and ask. Preserve unrelated working-tree changes.
-- **Honest verification:** the subagent's report is not proof — re-run the verify yourself (§4) before
-  marking anything done.
-- If the next slice needs a product decision its acceptance criteria don't answer, ask one question
+- **Prerequisites gate (§1.5):** never start a slice whose Prerequisites aren't satisfied — stop and ask
+  the user for the missing input. Never stub, mock, or fake an external service to bypass the gate.
+- **Honest verification:** the subagent's report is not proof — re-run the verify yourself (§4),
+  Playwright behaviour scenarios included, before marking anything done.
+- If the next slice needs a product decision its verification contract doesn't answer, ask one question
   instead of guessing.
 - One slice per invocation, then stop and suggest a context reset.

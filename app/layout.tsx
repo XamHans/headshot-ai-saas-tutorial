@@ -7,6 +7,7 @@ import { Footer } from '@/components/footer';
 import { ThemeProvider } from '@/components/theme-provider';
 import { Toaster } from '@/components/ui/toaster';
 import { QueryProvider } from '@/lib/query/provider';
+import { Toaster as SonnerToaster } from 'sonner';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -58,6 +59,7 @@ html {
               <Footer />
             </main>
             <Toaster />
+            <SonnerToaster richColors position="top-center" />
           </ThemeProvider>
         </QueryProvider>
       </body>
