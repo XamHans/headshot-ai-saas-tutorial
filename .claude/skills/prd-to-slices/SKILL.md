@@ -42,6 +42,8 @@ descriptions should use the project's domain glossary vocabulary, and respect AD
 
 Look for opportunities to prefactor the code to make the implementation easier. "Make the change easy, then make the easy change."
 
+While exploring, note each slice's **prerequisites** — external services, credentials, or config a human must set up before the slice can run or be verified (a new bucket, an API key, a webhook secret, a third-party account). These become the slice's `## Prerequisites` section and the gate `/implement` checks before starting.
+
 ### 3. Draft vertical slices
 
 Break the plan into **tracer bullet** slices. Each slice is a thin vertical slice that cuts through ALL
@@ -89,6 +91,8 @@ Present the proposed breakdown as a numbered list. For each slice, show:
 - **Routing**: the proposed `model/effort` — e.g. `opus/high`, `opus/medium`, `sonnet/medium`,
   `sonnet/low` — plus a one-line `why`
 - **Blocked by**: which other slices (if any) must complete first
+- **Prerequisites**: any external service / credential / config the slice needs before it can run —
+  surface these early so the human can set them up in parallel (and so `/implement` won't stall later)
 - **User stories covered**: which user stories this addresses (if the source material has them)
 
 Ask the user:
@@ -124,8 +128,18 @@ slice in execution order with a status marker, and point at the next one:
 
 Mark a slice `[x]` only once `/implement` has fully completed and merged it. The first `[ ]` slice is NEXT.
 
-Use this template per slice file. The **`## Acceptance criteria`** section IS the verification contract —
-it defines "done = verified" for that slice.
+Use this template per slice file. It carries three distinct contract-bearing sections, each with its own
+job — keep them separate:
+
+- **`## Prerequisites`** — external setup a human must provide before the slice can run or be verified.
+  Each names the **required input** and a way to check it's present. `/implement` gates on this section: it
+  will not start a slice whose required inputs are missing — it stops and asks the user to supply them.
+- **`## Verification contract (behaviour, in Gherkin)`** — the **implementation-independent** behaviour
+  spec that defines "done = verified". Written as Given/When/Then scenarios covering the **happy path** and
+  the **edge cases**. Each scenario becomes a **Playwright** test. It describes observable behaviour only —
+  never file paths, function names, or internal layers — so it stays valid no matter how the slice is built.
+- **`## Implementation notes (TDD)`** — advisory red-first guidance for the `/implement` subagent, kept
+  deliberately separate so the behaviour contract never leaks implementation detail.
 
 <slice-template>
 ---
@@ -141,11 +155,60 @@ A concise description of this vertical slice. Describe the end-to-end behavior, 
 
 Avoid specific file paths or code snippets — they go stale fast. Exception: if a prototype produced a snippet that encodes a decision more precisely than prose can (state machine, reducer, schema, type shape), inline it here and note briefly that it came from a prototype. Trim to the decision-rich parts — not a working demo, just the important bits.
 
-## Acceptance criteria (verification contract)
+## Prerequisites
 
-- [ ] Criterion 1
-- [ ] Criterion 2
-- [ ] Criterion 3
+External services, credentials, or configuration a human must provide BEFORE this slice can be implemented
+or verified. `/implement` reads this section first and will NOT start the slice until every **Required
+input** below is present — it stops and asks you to supply them. Never stub or fake an external service to
+get past this gate.
+
+List each as an unchecked box. If the slice needs nothing external, write exactly
+`None — no external setup required.`
+
+- [ ] **<Service / capability>** — <why this slice needs it>.
+  - Required input: `<ENV_VAR_OR_CONFIG_NAME>` — <what it is and how to obtain it: dashboard URL, CLI command>.
+  - Verify present: `<a command or check that proves it's configured>`.
+
+## Verification contract (behaviour, in Gherkin)
+
+The **implementation-independent** behaviour spec — the executable definition of done. Each scenario
+describes observable behaviour (what a user or client can see through the UI or an API response), never
+internal layers, file paths, or function names, and each becomes a **Playwright** test. Cover the **happy
+path** and the **edge cases** that matter: invalid input, auth/permission, boundaries, external-service
+failure, idempotency. Keep every `Then` observable — something a test can assert — not an internal-state claim.
+
+Each scenario is one checkbox `/implement` ticks when its Playwright test passes.
+
+- [ ] **Scenario: <happy-path name>**
+  ```gherkin
+  Given <a signed-in user / precondition>
+  When <the user performs the action>
+  Then <the observable outcome>
+  And <any further observable outcome or invariant>
+  ```
+
+- [ ] **Scenario: <edge-case name>**
+  ```gherkin
+  Given <precondition>
+  When <the boundary or invalid action>
+  Then <the friendly, observable failure>
+  And <any invariant that must hold, e.g. "no job is created" / "no external spend">
+  ```
+
+Add as many scenarios as the behaviour needs — but only ones a Playwright test can actually observe.
+
+## Implementation notes (TDD)
+
+Advisory guidance for the `/implement` subagent on HOW to build it red-first — separate from the contract
+above so the contract stays implementation-independent. Sketch the red→green→refactor order:
+
+1. Start from the first failing behaviour scenario (or a unit test for the riskiest logic) — **red**.
+2. Write the minimum code to make it pass — **green**. Vertical: touch a layer only when the test forces it.
+3. **Refactor**, then repeat for the next scenario.
+
+Call out the risky/uncertain parts to spike first, the existing assets to reuse, and any invariant the
+tests must pin (e.g. "rejected input triggers no external spend"). This section is advisory — the
+verification contract, not these notes, defines done.
 
 ## Blocked by
 
