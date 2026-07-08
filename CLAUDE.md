@@ -50,6 +50,8 @@ Data flows one way: Component → hook (`fetchApi`) → route handler → servic
 
 - **`lib/api/base.ts` is deprecated** and its `withAuthentication` is a broken stub (returns 500). Never import from it. Use `lib/api/handlers.ts` + `lib/validation/parse.ts`. Migrate any AI/upload route that still references it when you touch it.
 - The chat route (`app/api/ai/chat/route.ts`) streams via the AI SDK and legitimately does **not** use `Result` — streaming responses are the one exception.
+- **`BETTER_AUTH_URL` must match the manual dev server port.** `pnpm dev` runs on `localhost:3000`, so `.env.local` must have `BETTER_AUTH_URL=http://localhost:3000`. Playwright starts its own server on port 3131 (see `playwright.config.ts`) and bypasses email links entirely (tokens read from the DB), so it is not affected by this value — but any human clicking a magic link in a browser will get "connection refused" if the port is wrong.
+- **Always use `<SonnerToaster>` from `sonner`, not `<Toaster>` from `@/components/ui/toaster`.** The codebase has two toast systems: the shadcn/ui Radix `<Toaster>` (used by `useToast`) and Sonner's `<Toaster>` (used by `toast.*` from `sonner`). All feature UI uses `sonner`'s imperative API — calls to `toast.error()` / `toast.success()` are silently dropped unless `<Toaster>` from `sonner` is mounted in `app/layout.tsx`. Check it is present before implementing any toast feedback in a new feature.
 
 ## Workflow
 
