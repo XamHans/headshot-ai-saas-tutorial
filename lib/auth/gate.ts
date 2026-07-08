@@ -56,7 +56,7 @@ export async function requireVerifiedConsented(): Promise<VerifiedConsentedUser>
   const session = await auth.api.getSession({ headers: await headers() });
 
   if (!session?.user) {
-    redirect('/headshot/onboarding?reason=unauthenticated');
+    redirect('/?reason=unauthenticated');
   }
 
   const [row] = await db()
@@ -66,11 +66,11 @@ export async function requireVerifiedConsented(): Promise<VerifiedConsentedUser>
     .limit(1);
 
   if (!row || !row.emailVerified) {
-    redirect('/headshot/onboarding?reason=unverified');
+    redirect('/?reason=unverified');
   }
 
   if (!row.biometricConsentAt) {
-    redirect('/headshot/onboarding?reason=unconsented');
+    redirect('/?reason=unconsented');
   }
 
   return {

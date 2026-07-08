@@ -20,7 +20,7 @@ export const POST = withHandler<RequestMagicLinkResult>(async (req) => {
 
   try {
     await auth.api.signInMagicLink({
-      body: { email, callbackURL: '/headshot/onboarding' },
+      body: { email, callbackURL: '/' },
       headers: req.headers,
     });
   } catch (error) {

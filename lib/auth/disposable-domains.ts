@@ -6,6 +6,7 @@
  * Kept as a plain array so it is trivially extendable and diff-reviewable.
  */
 export const DISPOSABLE_EMAIL_DOMAINS: readonly string[] = [
+  'dysonc.com',
   'mailinator.com',
   'guerrillamail.com',
   'guerrillamailblock.com',

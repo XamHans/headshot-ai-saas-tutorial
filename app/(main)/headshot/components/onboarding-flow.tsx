@@ -65,7 +65,7 @@ export function OnboardingFlow() {
   const isAuthenticated = !sessionPending && !!session?.user;
 
   return (
-    <div className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center p-8">
+    <div className="w-full max-w-md mx-auto space-y-4">
       {gateMessage && (
         <div
           role="alert"
