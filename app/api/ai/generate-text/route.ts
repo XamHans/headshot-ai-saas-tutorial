@@ -1,10 +1,10 @@
 import { openai } from '@ai-sdk/openai';
 import { generateText } from 'ai';
-import { withAuth } from '@/lib/api/handlers';
-import { parseRequestBody } from '@/lib/validation/parse';
-import { withAITelemetry } from '@/lib/ai/telemetry';
-import { logger } from '@/lib/logger';
 import { z } from 'zod';
+import { withAITelemetry } from '@/lib/ai/telemetry';
+import { withAuth } from '@/lib/api/handlers';
+import { logger } from '@/lib/logger';
+import { parseRequestBody } from '@/lib/validation/parse';
 
 const generateTextSchema = z.object({
   prompt: z.string().min(1, 'Prompt cannot be empty').max(8000, 'Prompt too long').trim(),

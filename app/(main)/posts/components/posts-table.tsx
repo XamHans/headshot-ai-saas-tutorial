@@ -3,6 +3,7 @@
 import { Edit2, Eye, EyeOff, MoreHorizontal, Plus, Search, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
+import { useDeletePost, usePosts, useUpdatePost } from '@/app/(main)/posts/hooks/use-posts';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -24,7 +25,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
-import { useDebounce } from '@/hooks/use-debounce';
 import {
   Table,
   TableBody,
@@ -33,7 +33,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { usePosts, useDeletePost, useUpdatePost } from '@/app/(main)/posts/hooks/use-posts';
+import { useDebounce } from '@/hooks/use-debounce';
 import type { Post } from '@/modules/posts/types';
 import { PostFormDialog } from './post-form-dialog';
 

@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm';
-import type { ServiceContext } from '@/lib/services/context';
 import { getServiceContext } from '@/lib/services';
+import type { ServiceContext } from '@/lib/services/context';
 import { user } from '../schema';
 
 export class UserService {

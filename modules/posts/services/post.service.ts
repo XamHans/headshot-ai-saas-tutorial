@@ -1,12 +1,12 @@
 import { and, desc, eq, ilike } from 'drizzle-orm';
-import type { ServiceContext } from '@/lib/services/context';
-import { getServiceContext } from '@/lib/services';
 import type { Result } from '@/lib/result';
+import { getServiceContext } from '@/lib/services';
+import type { ServiceContext } from '@/lib/services/context';
 import { posts } from '../schema';
 import type { CreatePostInput, Post, PostFilters, UpdatePostInput } from '../types';
 
 export class PostService {
-  constructor(private ctx: ServiceContext) { }
+  constructor(private ctx: ServiceContext) {}
 
   private get logger() {
     return this.ctx.logger.child({ service: 'PostService' });

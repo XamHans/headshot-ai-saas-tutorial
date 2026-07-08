@@ -1,12 +1,16 @@
 'use client';
 
-import { fetchApi } from '@/lib/api/client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { Post, CreatePostInput, UpdatePostInput } from '@/modules/posts/types';
+import { fetchApi } from '@/lib/api/client';
+import type { CreatePostInput, Post, UpdatePostInput } from '@/modules/posts/types';
 
-export function usePosts(
-  filters?: { search?: string; limit?: number; offset?: number; authorId?: string; includeUnpublished?: boolean },
-) {
+export function usePosts(filters?: {
+  search?: string;
+  limit?: number;
+  offset?: number;
+  authorId?: string;
+  includeUnpublished?: boolean;
+}) {
   const params = new URLSearchParams();
   if (filters?.search) params.set('search', filters.search);
   if (filters?.limit) params.set('limit', String(filters.limit));

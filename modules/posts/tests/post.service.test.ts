@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { getTestDb } from '@/tests/utils/test-database';
 import { createLogger } from '@/lib/logger';
-import { createPostService } from '../services/post.service';
-import type { PostService } from '../services/post.service';
 import type { ServiceContext } from '@/lib/services/context';
+import { getTestDb } from '@/tests/utils/test-database';
+import type { PostService } from '../services/post.service';
+import { createPostService } from '../services/post.service';
 
 describe('PostService', () => {
   let postService: PostService;

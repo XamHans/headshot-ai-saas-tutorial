@@ -1,9 +1,9 @@
 import type { NextRequest } from 'next/server';
-import { withAuth } from '@/lib/api/handlers';
-import { parseRequestBody } from '@/lib/validation/parse';
-import { emailService } from '@/lib/services/email';
-import { type EmailTemplateName, emailTemplates } from '@/lib/email/templates';
 import { z } from 'zod';
+import { withAuth } from '@/lib/api/handlers';
+import { type EmailTemplateName, emailTemplates } from '@/lib/email/templates';
+import { emailService } from '@/lib/services/email';
+import { parseRequestBody } from '@/lib/validation/parse';
 
 // Helper to get template names at runtime
 const templateNames = Object.keys(emailTemplates) as [string, ...string[]];

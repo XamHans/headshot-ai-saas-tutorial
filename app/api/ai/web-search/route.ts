@@ -1,10 +1,10 @@
 import { google } from '@ai-sdk/google';
 import { openai } from '@ai-sdk/openai';
 import { generateText, stepCountIs } from 'ai';
+import { z } from 'zod';
+import { withAITelemetry } from '@/lib/ai/telemetry';
 import { withAuth } from '@/lib/api/handlers';
 import { parseRequestBody } from '@/lib/validation/parse';
-import { withAITelemetry } from '@/lib/ai/telemetry';
-import { z } from 'zod';
 
 const searchProviderSchema = z.enum(['openai', 'google']);
 type SearchProvider = z.infer<typeof searchProviderSchema>;

@@ -1,8 +1,8 @@
 import { and, desc, eq } from 'drizzle-orm';
 import Stripe from 'stripe';
-import type { ServiceContext } from '@/lib/services/context';
-import { getServiceContext } from '@/lib/services';
 import type { Result } from '@/lib/result';
+import { getServiceContext } from '@/lib/services';
+import type { ServiceContext } from '@/lib/services/context';
 import { payments, webhookEvents } from '../schema';
 import type { CreatePaymentInput, NewPayment, Payment, PaymentFilters } from '../types';
 
@@ -17,8 +17,8 @@ export class PaymentService {
 
     this.stripe = secretKey
       ? new Stripe(secretKey, {
-        apiVersion: '2023-10-16',
-      })
+          apiVersion: '2023-10-16',
+        })
       : null;
   }
 
@@ -53,11 +53,11 @@ export class PaymentService {
       ...extras,
       ...(metadata
         ? Object.fromEntries(
-          Object.entries(metadata).map(([key, value]) => [
-            key,
-            value == null ? '' : String(value),
-          ]),
-        )
+            Object.entries(metadata).map(([key, value]) => [
+              key,
+              value == null ? '' : String(value),
+            ]),
+          )
         : undefined),
     };
   }
@@ -238,7 +238,7 @@ export class PaymentService {
     try {
       const stripe = this.requireStripe();
 
-      let sessionId = stripeCheckoutSessionId;
+      const sessionId = stripeCheckoutSessionId;
       let intentId = stripePaymentIntentId;
 
       let session: Stripe.Checkout.Session | null = null;
@@ -266,10 +266,10 @@ export class PaymentService {
       const paidAt =
         intent?.status === 'succeeded'
           ? new Date(
-            ((intent.latest_charge && typeof intent.latest_charge !== 'string'
-              ? intent.latest_charge.created
-              : intent.created) ?? intent.created) * 1000,
-          )
+              ((intent.latest_charge && typeof intent.latest_charge !== 'string'
+                ? intent.latest_charge.created
+                : intent.created) ?? intent.created) * 1000,
+            )
           : null;
 
       const failedAt =

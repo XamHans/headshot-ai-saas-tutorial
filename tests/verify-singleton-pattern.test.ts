@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 // Test that we can import singletons
 describe('Singleton Pattern Verification', () => {
