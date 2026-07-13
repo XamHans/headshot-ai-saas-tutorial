@@ -78,9 +78,11 @@ export const getPinoConfig = (config: LoggerConfig): LoggerOptions => {
     },
   };
 
-  // Use pretty printing in test and development environments
-  // Safe to use pino-pretty in test environment (no Next.js worker threads)
-  if (config.environment === 'test' || config.environment === 'development') {
+  // Use pretty printing in the test environment only. pino-pretty's `transport`
+  // option spawns a worker thread (thread-stream); under Next.js dev + Turbopack
+  // that worker's module path resolves incorrectly and crashes the server, so
+  // development falls back to the plain JSON config below.
+  if (config.environment === 'test') {
     return {
       ...baseConfig,
       transport: {
