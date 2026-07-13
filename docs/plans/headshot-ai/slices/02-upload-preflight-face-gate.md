@@ -37,12 +37,12 @@ This slice ends at "job created, source stored". Style-pick + generation is slic
 
 ## Prerequisites
 
-- [ ] **Cloudflare R2 — private bucket for sources** — stores uploaded biometric photos privately.
+- [x] **Cloudflare R2 — private bucket for sources** — stores uploaded biometric photos privately.
   - Required input: `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME` — from the
     Cloudflare R2 dashboard. Bucket must **not** be public-read.
   - Verify present: `r2Storage.uploadFile(...)` succeeds and the object is **not** reachable without a
     signed URL.
-- [ ] **Face-detection capability** — the pre-flight gate.
+- [x] **Face-detection capability** — the pre-flight gate.
   - Required input: a face-detection mechanism. *Default:* a cheap **server-side** check (e.g. a
     lightweight face-detection model / library invoked in the service before any Gemini call) so the gate
     can't be bypassed by a modified client. Override to `face-api.js` client-side + server re-check if you
@@ -51,7 +51,7 @@ This slice ends at "job created, source stored". Style-pick + generation is slic
 
 ## Verification contract (behaviour, in Gherkin)
 
-- [ ] **Scenario: upload a good single-face photo creates a pending job**
+- [x] **Scenario: upload a good single-face photo creates a pending job**
   ```gherkin
   Given a verified, consented user on the upload screen
   When they upload one clear, front-facing, well-lit photo under the size limit
@@ -60,7 +60,7 @@ This slice ends at "job created, source stored". Style-pick + generation is slic
   And the user proceeds toward style selection
   ```
 
-- [ ] **Scenario: photo with no detectable face is rejected before any spend**
+- [x] **Scenario: photo with no detectable face is rejected before any spend**
   ```gherkin
   Given a verified, consented user on the upload screen
   When they upload a photo with no clear face
@@ -69,7 +69,7 @@ This slice ends at "job created, source stored". Style-pick + generation is slic
   And nothing is sent to the image model
   ```
 
-- [ ] **Scenario: photo with multiple faces is rejected**
+- [x] **Scenario: photo with multiple faces is rejected**
   ```gherkin
   Given a verified, consented user on the upload screen
   When they upload a photo containing more than one face
@@ -77,7 +77,7 @@ This slice ends at "job created, source stored". Style-pick + generation is slic
   And no job is created
   ```
 
-- [ ] **Scenario: oversized or wrong file type is rejected**
+- [x] **Scenario: oversized or wrong file type is rejected**
   ```gherkin
   Given a verified, consented user on the upload screen
   When they upload a file over the size limit or a non-image type
@@ -85,7 +85,7 @@ This slice ends at "job created, source stored". Style-pick + generation is slic
   And no upload to storage occurs
   ```
 
-- [ ] **Scenario: source is stored privately**
+- [x] **Scenario: source is stored privately**
   ```gherkin
   Given a passing photo has just been uploaded
   When one inspects the stored source object without a signed URL
