@@ -51,6 +51,35 @@ export async function setupTestDatabase() {
       }
     }
 
+    // Apply schema additions from later migrations that the base 0000 file
+    // predates but the service tests depend on (kept idempotent).
+    await testClient`SET search_path TO test`;
+    await testClient.unsafe(`
+      ALTER TABLE "user" ADD COLUMN IF NOT EXISTS "biometric_consent_at" timestamp;
+
+      CREATE TABLE IF NOT EXISTS "headshot_jobs" (
+        "id" text PRIMARY KEY NOT NULL,
+        "user_id" text NOT NULL,
+        "source_image_key" text NOT NULL,
+        "style_id" text,
+        "status" text DEFAULT 'pending' NOT NULL,
+        "unlocked" boolean DEFAULT false NOT NULL,
+        "payment_id" text,
+        "free_regen_used" boolean DEFAULT false NOT NULL,
+        "created_at" timestamp NOT NULL,
+        "updated_at" timestamp NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS "headshot_images" (
+        "id" text PRIMARY KEY NOT NULL,
+        "job_id" text NOT NULL,
+        "preview_key" text,
+        "full_key" text,
+        "style_variant" text,
+        "created_at" timestamp NOT NULL
+      );
+    `);
+
     // Reset search path
     await testClient`SET search_path TO public`;
 
@@ -86,7 +115,7 @@ export async function cleanTestDatabase() {
   try {
     // Truncate all tables in test schema with CASCADE to handle foreign keys
     await testClient`SET search_path TO test`;
-    await testClient`TRUNCATE TABLE specs, posts, "user", "session", "account", verification CASCADE`;
+    await testClient`TRUNCATE TABLE headshot_images, headshot_jobs, specs, posts, "user", "session", "account", verification CASCADE`;
     await testClient`SET search_path TO public`;
   } catch (error) {
     console.error('Failed to clean test database:', error);

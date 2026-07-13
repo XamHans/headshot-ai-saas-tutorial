@@ -2,8 +2,31 @@ import { eq } from 'drizzle-orm';
 import { isDisposableEmail } from '@/lib/auth/disposable-domains';
 import type { Result } from '@/lib/result';
 import { getServiceContext, type ServiceContext } from '@/lib/services';
+import { r2Storage } from '@/lib/storage/r2-client';
+import { type FaceGateResult, runFaceGate } from '@/lib/vision/face-detection';
 import { user } from '@/modules/users/schema';
-import type { RecordConsentResult, RequestMagicLinkResult } from '../types';
+import { headshotJobs } from '../schema';
+import { createJobInputSchema } from '../schemas';
+import type {
+  CreateJobInput,
+  HeadshotJob,
+  RecordConsentResult,
+  RequestMagicLinkResult,
+} from '../types';
+
+/** Face-gate rejection reason → friendly, specific client guidance. */
+function faceGateMessage(gate: FaceGateResult): string {
+  switch (gate.reason) {
+    case 'multiple_faces':
+      return 'We found more than one face — please upload a photo with just you in it.';
+    case 'low_resolution':
+      return 'This image is too small — please upload a higher-resolution photo of your face.';
+    case 'undecodable':
+      return "We couldn't read that image — please upload a valid JPEG or PNG photo.";
+    default:
+      return "We couldn't find a clear single face — try a well-lit photo facing the camera, with no sunglasses.";
+  }
+}
 
 /**
  * Business logic for the onboarding gate: guards magic-link requests against
@@ -84,6 +107,114 @@ export class HeadshotService {
           message: 'Failed to record consent',
           cause: error,
         },
+      };
+    }
+  }
+
+  /**
+   * Creates a headshot job from an uploaded source photo. Runs strictly:
+   *   1. re-validate file metadata (size/mime/extension) — never trust client
+   *   2. pre-flight face gate on the pixels — BEFORE any R2/DB write and BEFORE
+   *      any image-generation model could ever be contacted
+   *   3. on pass: store source privately in R2, insert a `pending` job row
+   *
+   * A photo that fails validation or the face gate produces zero job rows and
+   * zero storage writes — the core budget-protecting invariant of this slice.
+   */
+  async createJob(input: CreateJobInput, userId: string): Promise<Result<HeadshotJob>> {
+    this.logger.info('Creating headshot job', {
+      operation: 'createJob',
+      userId,
+      contentType: input.contentType,
+      size: input.size,
+    });
+
+    // 1. Re-validate file metadata server-side (independent of the client).
+    const parsed = createJobInputSchema.safeParse({
+      contentType: input.contentType,
+      filename: input.filename,
+      size: input.size,
+    });
+    if (!parsed.success) {
+      return {
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: parsed.error.issues[0]?.message ?? 'Invalid upload.',
+          details: {
+            issues: parsed.error.issues.map((i) => ({
+              path: i.path.join('.'),
+              message: i.message,
+            })),
+          },
+        },
+      };
+    }
+
+    // 2. Pre-flight face gate — runs on the buffer BEFORE any I/O or spend.
+    const gate = await runFaceGate(input.buffer);
+    if (gate.reason !== 'ok') {
+      this.logger.info('Photo rejected by face gate', {
+        operation: 'createJob',
+        userId,
+        reason: gate.reason,
+        faceCount: gate.faceCount,
+      });
+      return {
+        success: false,
+        error: {
+          code: gate.reason === 'multiple_faces' ? 'MULTIPLE_FACES_DETECTED' : 'NO_FACE_DETECTED',
+          message: faceGateMessage(gate),
+        },
+      };
+    }
+
+    // 3. Passed — store the source privately in R2, then insert a pending job.
+    const jobId = crypto.randomUUID();
+    const sourceImageKey = `sources/${userId}/${jobId}.jpg`;
+
+    try {
+      await r2Storage.uploadFile(sourceImageKey, input.buffer, input.contentType);
+    } catch (error) {
+      this.logger.error('Failed to upload source image to R2', {
+        error: error instanceof Error ? error : new Error(String(error)),
+        operation: 'createJob',
+        userId,
+        sourceImageKey,
+      });
+      return {
+        success: false,
+        error: {
+          code: 'EXTERNAL_SERVICE_ERROR',
+          message: 'Failed to store your photo — please try again.',
+          cause: error,
+        },
+      };
+    }
+
+    try {
+      const [job] = await this.ctx.db
+        .insert(headshotJobs)
+        .values({ id: jobId, userId, sourceImageKey, status: 'pending' })
+        .returning();
+
+      this.logger.info('Headshot job created', {
+        operation: 'createJob',
+        userId,
+        jobId: job.id,
+      });
+
+      return { success: true, data: job };
+    } catch (error) {
+      this.logger.error('Failed to insert headshot job', {
+        error: error instanceof Error ? error : new Error(String(error)),
+        operation: 'createJob',
+        userId,
+        jobId,
+      });
+      return {
+        success: false,
+        error: { code: 'DATABASE_ERROR', message: 'Failed to create job', cause: error },
       };
     }
   }
