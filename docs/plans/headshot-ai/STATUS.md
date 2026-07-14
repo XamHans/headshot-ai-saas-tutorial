@@ -9,8 +9,8 @@ Dependency shape: `01 → 02 → 03 → {04, 05, 07}`, then `05 → 06`. After 0
 - [x] 01 — Verified-email onboarding + biometric-consent gate   (opus/medium)
 - [x] 02 — Upload one photo + pre-flight face gate + R2 store + job creation   (opus/high)
 - [x] 03 — Style pick + synchronous generation + watermarked previews   (opus/high)
-- [ ] 04 — Abuse controls: 1-free-generation cap + IP/device rate limit   (opus/medium)   👈 NEXT
-- [ ] 05 — $5 unlock via Stripe + webhook markUnlocked + full-res signed-URL delivery   (opus/medium)
+- [x] 04 — Abuse controls: 1-free-generation cap + IP/device rate limit   (opus/medium)
+- [ ] 05 — $5 unlock via Stripe + webhook markUnlocked + full-res signed-URL delivery   (opus/medium)   👈 NEXT
 - [ ] 06 — Email delivery of results link   (sonnet/low)
 - [ ] 07 — Retention: 30-day cleanup job + "delete my data"   (opus/medium)
 

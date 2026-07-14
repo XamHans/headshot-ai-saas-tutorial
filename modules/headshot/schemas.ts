@@ -60,6 +60,10 @@ export const generateSetSchema = z.object({
   styleId: z.enum(STYLE_IDS, {
     errorMap: () => ({ message: 'Unknown style.' }),
   }),
+  // Optional client device fingerprint (FingerprintJS open-source visitor id).
+  // Combined with the request IP at the route boundary for rate limiting; sent
+  // in the JSON body (never a custom header — see fetchApi's header footgun).
+  fingerprint: z.string().max(256).optional(),
 });
 
 export type GenerateSetSchema = z.infer<typeof generateSetSchema>;

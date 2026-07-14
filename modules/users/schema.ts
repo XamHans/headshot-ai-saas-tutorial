@@ -20,6 +20,10 @@ export const user = tableHelper('user', {
   provider: text('provider'),
   providerId: text('provider_id'),
   biometricConsentAt: timestamp('biometric_consent_at'),
+  // One-free-generation cap: stamped the first time a user consumes their single
+  // free generation, ever. Consumed via a race-safe conditional UPDATE (set only
+  // when currently NULL) so two concurrent first-generations can't both win.
+  headshotFreeGenerationUsedAt: timestamp('headshot_free_generation_used_at'),
   createdAt: timestamp('created_at')
     .$defaultFn(() => new Date())
     .notNull(),

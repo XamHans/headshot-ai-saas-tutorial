@@ -56,6 +56,13 @@ export async function setupTestDatabase() {
     await testClient`SET search_path TO test`;
     await testClient.unsafe(`
       ALTER TABLE "user" ADD COLUMN IF NOT EXISTS "biometric_consent_at" timestamp;
+      ALTER TABLE "user" ADD COLUMN IF NOT EXISTS "headshot_free_generation_used_at" timestamp;
+
+      CREATE TABLE IF NOT EXISTS "headshot_rate_limits" (
+        "key" text PRIMARY KEY NOT NULL,
+        "window_start" timestamp NOT NULL,
+        "count" integer DEFAULT 0 NOT NULL
+      );
 
       CREATE TABLE IF NOT EXISTS "headshot_jobs" (
         "id" text PRIMARY KEY NOT NULL,
@@ -115,7 +122,7 @@ export async function cleanTestDatabase() {
   try {
     // Truncate all tables in test schema with CASCADE to handle foreign keys
     await testClient`SET search_path TO test`;
-    await testClient`TRUNCATE TABLE headshot_images, headshot_jobs, specs, posts, "user", "session", "account", verification CASCADE`;
+    await testClient`TRUNCATE TABLE headshot_images, headshot_jobs, headshot_rate_limits, specs, posts, "user", "session", "account", verification CASCADE`;
     await testClient`SET search_path TO public`;
   } catch (error) {
     console.error('Failed to clean test database:', error);

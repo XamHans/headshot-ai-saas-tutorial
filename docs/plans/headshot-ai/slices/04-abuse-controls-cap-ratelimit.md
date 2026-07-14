@@ -29,14 +29,14 @@ End-to-end behaviour:
 
 ## Prerequisites
 
-- [ ] **Device-fingerprint capability** — the per-device half of the rate limit.
+- [x] **Device-fingerprint capability** — the per-device half of the rate limit.
   - Required input: a fingerprinting approach. *Default:* a standard client fingerprint library (e.g.
     FingerprintJS open-source) producing a stable visitor id sent with the generation request, combined
     with server-side IP. Override to a different library/service if preferred. No paid account required for
     the default.
   - Verify present: two requests from the same browser carry the same fingerprint; the rate limiter reads
     both IP and fingerprint.
-- [ ] **Rate-limit store** — where counters live.
+- [x] **Rate-limit store** — where counters live.
   - Required input: a store for rate-limit counters. *Default:* reuse the app's existing datastore (DB) or
     an in-process/edge counter; no new external service. Override to Redis/Upstash if higher throughput is
     needed later.
@@ -44,7 +44,7 @@ End-to-end behaviour:
 
 ## Verification contract (behaviour, in Gherkin)
 
-- [ ] **Scenario: first generation is free**
+- [x] **Scenario: first generation is free**
   ```gherkin
   Given a verified, consented user who has never generated before
   When they generate a set of headshots
@@ -52,7 +52,7 @@ End-to-end behaviour:
   And their free allowance is now consumed
   ```
 
-- [ ] **Scenario: second generation requires payment before any spend**
+- [x] **Scenario: second generation requires payment before any spend**
   ```gherkin
   Given a user who has already used their one free generation
   When they attempt to generate a new set
@@ -61,7 +61,7 @@ End-to-end behaviour:
   And nothing is sent to the image model
   ```
 
-- [ ] **Scenario: free regenerate of a failed/poor set does not count as a new free generation**
+- [x] **Scenario: free regenerate of a failed/poor set does not count as a new free generation**
   ```gherkin
   Given a user whose first generation produced a set and who has not used their free regenerate
   When they trigger the one free regenerate of that set
@@ -70,7 +70,7 @@ End-to-end behaviour:
   And a subsequent brand-new generation still requires payment
   ```
 
-- [ ] **Scenario: rapid repeated attempts are rate-limited before spend**
+- [x] **Scenario: rapid repeated attempts are rate-limited before spend**
   ```gherkin
   Given many generation attempts from the same IP and device in a short window
   When the attempts exceed the limit
