@@ -84,9 +84,8 @@ test.describe('headshot upload + face gate', () => {
     await page.getByRole('button', { name: /choose photo/i }).click();
     await (await chooser).setFiles(join(FIXTURES, 'single-face.jpg'));
 
-    // Scoped to the persistent inline confirmation (not the transient toast,
-    // which uses different wording and can also disappear before the check runs).
-    await expect(page.getByText(/style selection is coming next/i)).toBeVisible({
+    // On a passing photo the flow advances to the style step (a job now exists).
+    await expect(page.getByRole('group', { name: /choose a headshot style/i })).toBeVisible({
       timeout: 30000,
     });
 
@@ -135,7 +134,7 @@ test.describe('headshot upload + face gate', () => {
     const chooser = page.waitForEvent('filechooser');
     await page.getByRole('button', { name: /choose photo/i }).click();
     await (await chooser).setFiles(join(FIXTURES, 'single-face.jpg'));
-    await expect(page.getByText(/style selection is coming next/i)).toBeVisible({
+    await expect(page.getByRole('group', { name: /choose a headshot style/i })).toBeVisible({
       timeout: 30000,
     });
 

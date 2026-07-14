@@ -11,6 +11,7 @@ import {
   HEADSHOT_ALLOWED_MIME_TYPES,
   HEADSHOT_MAX_FILE_SIZE,
 } from '@/modules/headshot/schemas';
+import type { HeadshotJob } from '@/modules/headshot/types';
 import { useHeadshotUpload } from '../hooks/use-headshot-upload';
 
 const CLIENT_VALIDATION_RULES = {
@@ -26,7 +27,12 @@ const CLIENT_VALIDATION_RULES = {
  * pre-flight face gate before any job is created. All async state comes from
  * the mutation (`isPending` / `isError` / `error`), never local flags.
  */
-export function HeadshotUploader() {
+interface HeadshotUploaderProps {
+  /** Called once a source photo passes the gate and a pending job is created. */
+  onJobCreated?: (job: HeadshotJob) => void;
+}
+
+export function HeadshotUploader({ onJobCreated }: HeadshotUploaderProps = {}) {
   const upload = useHeadshotUpload();
   const inputRef = useRef<HTMLInputElement>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -50,8 +56,9 @@ export function HeadshotUploader() {
     setSelectedName(file.name);
 
     upload.mutate(file, {
-      onSuccess: () => {
+      onSuccess: (job) => {
         toast.success('Photo accepted! You can now pick a style.');
+        onJobCreated?.(job);
       },
       onError: (err) => {
         toast.error(err.message);
@@ -92,6 +99,7 @@ export function HeadshotUploader() {
           className="flex min-h-48 flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed border-muted-foreground/25 p-6 text-center transition-colors hover:border-muted-foreground/50 disabled:opacity-60"
         >
           {previewUrl ? (
+            // biome-ignore lint/performance/noImgElement: local object-URL preview of the just-selected file; next/image cannot handle blob: URLs.
             <img
               src={previewUrl}
               alt="Selected preview"
@@ -115,6 +123,7 @@ export function HeadshotUploader() {
         />
 
         {upload.isPending && (
+          // biome-ignore lint/a11y/useSemanticElements: a polite live status region, not an <output> for a form result.
           <div
             className="flex items-center gap-2 text-sm text-muted-foreground"
             role="status"
@@ -132,13 +141,14 @@ export function HeadshotUploader() {
         )}
 
         {succeeded ? (
+          // biome-ignore lint/a11y/useSemanticElements: a polite live status region, not an <output> for a form result.
           <div
             className="flex items-center gap-2 rounded-md bg-muted p-3 text-sm"
             role="status"
             aria-live="polite"
           >
             <CheckCircle2 className="h-4 w-4 text-green-600" aria-hidden />
-            <span>Photo accepted — style selection is coming next.</span>
+            <span>Photo accepted — now choose a style below.</span>
           </div>
         ) : (
           <Button

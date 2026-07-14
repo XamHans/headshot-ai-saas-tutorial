@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { HEADSHOT_STYLES } from './styles';
 
 /**
  * Email entered at the onboarding step. The disposable-domain policy is
@@ -48,3 +49,17 @@ export const createJobInputSchema = z.object({
 });
 
 export type CreateJobInputSchema = z.infer<typeof createJobInputSchema>;
+
+/**
+ * Body of `POST /api/headshots/[id]/generate`. `styleId` must be one of the
+ * known v1 presets; unknown ids are rejected at the boundary.
+ */
+const STYLE_IDS = HEADSHOT_STYLES.map((s) => s.id) as [string, ...string[]];
+
+export const generateSetSchema = z.object({
+  styleId: z.enum(STYLE_IDS, {
+    errorMap: () => ({ message: 'Unknown style.' }),
+  }),
+});
+
+export type GenerateSetSchema = z.infer<typeof generateSetSchema>;

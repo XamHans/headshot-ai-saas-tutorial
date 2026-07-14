@@ -1,18 +1,47 @@
 import { eq } from 'drizzle-orm';
 import { isDisposableEmail } from '@/lib/auth/disposable-domains';
+import { compositeWatermark } from '@/lib/media/watermark';
 import type { Result } from '@/lib/result';
 import { getServiceContext, type ServiceContext } from '@/lib/services';
 import { r2Storage } from '@/lib/storage/r2-client';
 import { type FaceGateResult, runFaceGate } from '@/lib/vision/face-detection';
 import { user } from '@/modules/users/schema';
-import { headshotJobs } from '../schema';
+import { headshotImages, headshotJobs } from '../schema';
 import { createJobInputSchema } from '../schemas';
+import { getHeadshotStyle, HEADSHOT_VARIANT_COUNT, isValidStyleId } from '../styles';
 import type {
   CreateJobInput,
+  GenerateSetResult,
   HeadshotJob,
   RecordConsentResult,
   RequestMagicLinkResult,
 } from '../types';
+// Imported as a namespace so the Gemini-call boundary can be spied in tests.
+import * as generator from './headshot-generator';
+
+/** Per-Gemini-call hard timeout. Two attempts × 25s ≈ 50s worst case. */
+const GENERATION_TIMEOUT_MS = 25_000;
+
+/** Race a promise against a timeout; a timeout resolves to a Result error. */
+async function withTimeout<T>(promise: Promise<Result<T>>, ms: number): Promise<Result<T>> {
+  let timer: ReturnType<typeof setTimeout>;
+  const timeout = new Promise<Result<T>>((resolve) => {
+    timer = setTimeout(
+      () =>
+        resolve({
+          success: false,
+          error: { code: 'EXTERNAL_SERVICE_ERROR', message: 'Image generation timed out.' },
+        }),
+      ms,
+    );
+  });
+  try {
+    return await Promise.race([promise, timeout]);
+  } finally {
+    // biome-ignore lint/style/noNonNullAssertion: timer is always assigned synchronously above.
+    clearTimeout(timer!);
+  }
+}
 
 /** Face-gate rejection reason → friendly, specific client guidance. */
 function faceGateMessage(gate: FaceGateResult): string {
@@ -216,6 +245,251 @@ export class HeadshotService {
         success: false,
         error: { code: 'DATABASE_ERROR', message: 'Failed to create job', cause: error },
       };
+    }
+  }
+
+  /**
+   * Runs a full 3-variant generation set for a pending/failed job:
+   *   1. Load + own the job; guard status (pending/failed only).
+   *   2. Validate the styleId against the known presets.
+   *   3. Flip status → generating, persist styleId.
+   *   4. Fan out 3 parallel Gemini image-to-image calls (each timeout-bounded).
+   *      If the whole attempt fails, retry the whole attempt once.
+   *   5. On success: watermark each output, upload preview + full to R2 under
+   *      distinct keys, insert one image row each, flip status → ready.
+   *   6. On persistent failure: status → failed, ZERO image rows written.
+   *
+   * Returns only client-safe preview DTOs — never a fullKey/full-res URL.
+   */
+  async generateSet(
+    jobId: string,
+    userId: string,
+    styleId: string,
+  ): Promise<Result<GenerateSetResult>> {
+    this.logger.info('Generating headshot set', {
+      operation: 'generateSet',
+      userId,
+      jobId,
+      styleId,
+    });
+
+    // 1-2. Ownership + style + status guards (see helper).
+    const guard = await this.loadGeneratableJob(jobId, userId, styleId);
+    if (!guard.success) return guard;
+    const { job, style } = guard.data;
+
+    // 3. Flip to generating + persist styleId.
+    await this.ctx.db
+      .update(headshotJobs)
+      .set({ status: 'generating', styleId, updatedAt: new Date() })
+      .where(eq(headshotJobs.id, jobId));
+
+    // Load the source photo once (reused across both attempts).
+    let sourceBuffer: Buffer;
+    try {
+      sourceBuffer = await this.loadSource(job.sourceImageKey);
+    } catch (error) {
+      await this.markFailed(jobId);
+      this.logger.error('Failed to load source image for generation', {
+        error: error instanceof Error ? error : new Error(String(error)),
+        operation: 'generateSet',
+        userId,
+        jobId,
+      });
+      return {
+        success: false,
+        error: { code: 'GENERATION_FAILED', message: 'Could not load your source photo.' },
+      };
+    }
+
+    // 4. Attempt (with a single whole-set retry).
+    let buffers = await this.runAttempt(sourceBuffer, style.prompt, {
+      userId,
+      jobId,
+      styleId,
+    });
+    if (!buffers) {
+      this.logger.info('First generation attempt failed — retrying once', {
+        operation: 'generateSet',
+        userId,
+        jobId,
+      });
+      buffers = await this.runAttempt(sourceBuffer, style.prompt, { userId, jobId, styleId });
+    }
+
+    if (!buffers) {
+      await this.markFailed(jobId);
+      this.logger.error('Generation failed after retry', {
+        operation: 'generateSet',
+        userId,
+        jobId,
+      });
+      return {
+        success: false,
+        error: {
+          code: 'GENERATION_FAILED',
+          message: "We couldn't generate your headshots — please try again.",
+        },
+      };
+    }
+
+    // 5. Watermark + upload + persist. On any failure here, mark failed and do
+    // not leave partial image rows.
+    try {
+      const previews: GenerateSetResult['previews'] = [];
+      const imageRows: (typeof headshotImages.$inferInsert)[] = [];
+
+      for (let i = 0; i < buffers.length; i++) {
+        const { previewBuffer, fullBuffer } = await compositeWatermark(buffers[i]);
+        const previewKey = `previews/${userId}/${jobId}/${i}.jpg`;
+        const fullKey = `full/${userId}/${jobId}/${i}.jpg`;
+
+        await r2Storage.uploadFile(previewKey, previewBuffer, 'image/jpeg');
+        await r2Storage.uploadFile(fullKey, fullBuffer, 'image/jpeg');
+
+        const imageId = crypto.randomUUID();
+        imageRows.push({
+          id: imageId,
+          jobId,
+          previewKey,
+          fullKey,
+          styleVariant: styleId,
+        });
+
+        // Signed URL for the PREVIEW only — the full-res key is never signed
+        // or returned here (that happens post-payment in a later slice).
+        const previewUrl = await r2Storage.getSignedUrl(previewKey);
+        previews.push({ id: imageId, styleVariant: styleId, previewUrl });
+      }
+
+      await this.ctx.db.insert(headshotImages).values(imageRows);
+
+      const [updated] = await this.ctx.db
+        .update(headshotJobs)
+        .set({ status: 'ready', updatedAt: new Date() })
+        .where(eq(headshotJobs.id, jobId))
+        .returning();
+
+      this.logger.info('Headshot set generated', {
+        operation: 'generateSet',
+        userId,
+        jobId,
+        count: previews.length,
+      });
+
+      return { success: true, data: { job: updated, previews } };
+    } catch (error) {
+      await this.markFailed(jobId);
+      this.logger.error('Failed to persist generated headshots', {
+        error: error instanceof Error ? error : new Error(String(error)),
+        operation: 'generateSet',
+        userId,
+        jobId,
+      });
+      return {
+        success: false,
+        error: {
+          code: 'GENERATION_FAILED',
+          message: "We couldn't finish preparing your headshots — please try again.",
+        },
+      };
+    }
+  }
+
+  /**
+   * Guard preamble for `generateSet`: loads the job, enforces ownership (a
+   * non-owner gets `JOB_NOT_FOUND` — no existence leak), validates the styleId,
+   * and enforces the status guard (only `pending`/`failed` may generate).
+   */
+  private async loadGeneratableJob(
+    jobId: string,
+    userId: string,
+    styleId: string,
+  ): Promise<Result<{ job: HeadshotJob; style: { id: string; prompt: string } }>> {
+    const [job] = await this.ctx.db
+      .select()
+      .from(headshotJobs)
+      .where(eq(headshotJobs.id, jobId))
+      .limit(1);
+
+    if (!job || job.userId !== userId) {
+      return { success: false, error: { code: 'JOB_NOT_FOUND', message: 'Job not found.' } };
+    }
+
+    const style = isValidStyleId(styleId) ? getHeadshotStyle(styleId) : undefined;
+    if (!style) {
+      return { success: false, error: { code: 'VALIDATION_ERROR', message: 'Unknown style.' } };
+    }
+
+    if (job.status !== 'pending' && job.status !== 'failed') {
+      return {
+        success: false,
+        error: {
+          code: 'JOB_NOT_GENERATABLE',
+          message:
+            job.status === 'generating'
+              ? 'Generation is already in progress.'
+              : 'This job has already been generated.',
+        },
+      };
+    }
+
+    return { success: true, data: { job, style } };
+  }
+
+  /** Load the private source photo bytes from R2 via a signed URL fetch. */
+  private async loadSource(sourceImageKey: string): Promise<Buffer> {
+    const signedUrl = await r2Storage.getSignedUrl(sourceImageKey);
+    const res = await fetch(signedUrl);
+    if (!res.ok) {
+      throw new Error(`Failed to fetch source (${res.status})`);
+    }
+    return Buffer.from(await res.arrayBuffer());
+  }
+
+  /**
+   * One whole attempt: 3 parallel, timeout-bounded Gemini calls. Returns the
+   * array of clean image buffers on full success, or `null` if ANY call fails
+   * (so the caller can retry the whole attempt).
+   */
+  private async runAttempt(
+    sourceBuffer: Buffer,
+    prompt: string,
+    telemetry: { userId: string; jobId: string; styleId: string },
+  ): Promise<Buffer[] | null> {
+    const results = await Promise.all(
+      Array.from({ length: HEADSHOT_VARIANT_COUNT }, () =>
+        withTimeout(
+          generator.generateHeadshotImage({
+            sourceBuffer,
+            sourceMediaType: 'image/jpeg',
+            prompt,
+            telemetry,
+          }),
+          GENERATION_TIMEOUT_MS,
+        ),
+      ),
+    );
+
+    if (results.some((r) => !r.success)) {
+      return null;
+    }
+    return results.map((r) => (r.success ? r.data.buffer : Buffer.alloc(0)));
+  }
+
+  /** Flip a job to `failed` (best-effort; swallow secondary errors). */
+  private async markFailed(jobId: string): Promise<void> {
+    try {
+      await this.ctx.db
+        .update(headshotJobs)
+        .set({ status: 'failed', updatedAt: new Date() })
+        .where(eq(headshotJobs.id, jobId));
+    } catch (error) {
+      this.logger.error('Failed to mark job failed', {
+        error: error instanceof Error ? error : new Error(String(error)),
+        operation: 'markFailed',
+        jobId,
+      });
     }
   }
 }

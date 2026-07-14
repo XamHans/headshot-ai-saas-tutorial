@@ -37,26 +37,33 @@ during development; 04 adds the guard.
 
 ## Prerequisites
 
-- [ ] **Gemini image model access** — the image-to-image generation calls.
+- [x] **Gemini image model access** — the image-to-image generation calls.
   - Required input: the Google Generative AI API key the existing `generate-image` route already uses
     (`GOOGLE_GENERATIVE_AI_API_KEY` or the project's configured equivalent) with access to
     `gemini-2.5-flash-image-preview`.
   - Verify present: the existing `app/api/ai/generate-image` route returns an image; an image-to-image call
     with a source photo returns an identity-preserving result.
-- [ ] **Style-preset prompt templates** — the quality asset.
+  - **Resolved:** the key initially had zero free-tier image-generation quota (verified live, blocked
+    `/implement`); once billing/quota was enabled it works. Also, `gemini-2.5-flash-image-preview` 404s on
+    this account/SDK — the working model id is **`gemini-2.5-flash-image`**, used throughout this slice's
+    code instead.
+- [x] **Style-preset prompt templates** — the quality asset.
   - Required input: prompt templates for the presets. *Default (approved for v1):* use the **6 candidate
     presets from plan §9** (Corporate/LinkedIn, Business-casual, Studio B&W, Creative/tech, Executive,
     Approachable) as starter prompts; harden later. No gate — placeholders are acceptable for v1.
   - Verify present: each preset id maps to a prompt template in code.
-- [ ] **Watermark design** — for the preview overlay.
+  - **Resolved:** `modules/headshot/styles.ts` — 6 presets, `corporate-linkedin` pre-selected as default.
+- [x] **Watermark design** — for the preview overlay.
   - Required input: a wordmark + opacity + downscale factor. *Default:* an aggressive diagonal text
     wordmark at ~30% opacity, downscaled ~50%. Override if brand assets exist. No external service.
   - Verify present: a generated preview visibly carries the diagonal watermark and is lower-resolution than
     the stored full-res.
+  - **Resolved:** `lib/media/watermark.ts` — tiled diagonal "PREVIEW" SVG overlay at 30% opacity over a 50%
+    downscale; visually confirmed on a real generated headshot.
 
 ## Verification contract (behaviour, in Gherkin)
 
-- [ ] **Scenario: pick a style and receive 3 watermarked previews**
+- [x] **Scenario: pick a style and receive 3 watermarked previews**
   ```gherkin
   Given a user with a pending job whose source photo passed the pre-flight gate
   When they pick a style and start generation
@@ -65,7 +72,7 @@ during development; 04 adds the guard.
   And no clean full-resolution download is available yet
   ```
 
-- [ ] **Scenario: a default style is pre-selected**
+- [x] **Scenario: a default style is pre-selected**
   ```gherkin
   Given a user who just reached the style step
   When the style picker renders
@@ -73,7 +80,7 @@ during development; 04 adds the guard.
   And the user can start generation in a single tap without choosing
   ```
 
-- [ ] **Scenario: hard failure auto-retries once and does not consume the free allowance**
+- [x] **Scenario: hard failure auto-retries once and does not consume the free allowance**
   ```gherkin
   Given generation is requested and the image model errors or times out on the first attempt
   When the service auto-retries once and succeeds
@@ -81,7 +88,7 @@ during development; 04 adds the guard.
   And the user's free-generation allowance is unchanged
   ```
 
-- [ ] **Scenario: persistent hard failure shows a friendly retry state**
+- [x] **Scenario: persistent hard failure shows a friendly retry state**
   ```gherkin
   Given generation fails on both the initial attempt and the auto-retry
   When the failure surfaces to the user
@@ -90,7 +97,7 @@ during development; 04 adds the guard.
   And no watermarked previews are shown
   ```
 
-- [ ] **Scenario: clean full-res is never exposed before payment**
+- [x] **Scenario: clean full-res is never exposed before payment**
   ```gherkin
   Given 3 watermarked previews are displayed for an un-unlocked job
   When one inspects the responses and page for image URLs
