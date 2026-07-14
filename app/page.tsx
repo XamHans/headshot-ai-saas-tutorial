@@ -3,7 +3,7 @@
 import { Camera, Check, Download, Shield, Sparkles, Star, Zap } from 'lucide-react';
 import { motion } from 'motion/react';
 import { Suspense } from 'react';
-import { OnboardingFlow } from '@/app/(main)/headshot/components/onboarding-flow';
+import { OnboardingFlow } from '@/app/(headshot)/headshot/components/onboarding-flow';
 import { Badge } from '@/components/ui/badge';
 
 const STEPS = [

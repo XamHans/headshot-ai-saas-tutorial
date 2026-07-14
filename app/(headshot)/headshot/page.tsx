@@ -8,7 +8,7 @@ export default async function HeadshotPage() {
   const user = await requireVerifiedConsented();
 
   return (
-    <div className="mx-auto flex min-h-screen w-full max-w-2xl flex-col justify-center gap-6 p-8">
+    <div className="mx-auto flex min-h-screen w-full max-w-5xl flex-col gap-6 p-8">
       <div className="flex flex-col gap-2">
         <h1 className="text-2xl font-bold tracking-tight">Generate your headshots</h1>
         <p className="text-muted-foreground">
