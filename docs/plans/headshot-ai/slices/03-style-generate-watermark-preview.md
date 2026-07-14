@@ -5,6 +5,10 @@ why: The core net-new media code — image-to-image, 3 parallel Gemini calls, se
 ---
 # 03 — Style pick + synchronous generation + watermarked previews
 
+**TL;DR — Goal:** Let the user pick a style and generate 3 AI headshots via Gemini image-to-image in
+~10s, returning watermarked previews only. **Unlocks:** the core product experience — upload → style →
+3 real headshot previews on screen — while clean full-res stays safely withheld until payment (slice 05).
+
 > Source plan: `docs/plans/headshot-ai/plan.md` (§5.3–5.5, §6-generation, §6-preview, §8-net-new). Original PRD: `docs/planning/headshot-ai-prd.md`.
 
 ## What to build

@@ -5,6 +5,10 @@ why: Established email-service pattern (emailService + templates), localized cha
 ---
 # 06 — Email delivery of results link
 
+**TL;DR — Goal:** Email the buyer a link back to their unlocked results right after payment, sent
+exactly once. **Unlocks:** users don't have to stay on the page to get their images — they can close
+the tab and come back to their results later via email.
+
 > Source plan: `docs/plans/headshot-ai/plan.md` (§5.8). Original PRD: `docs/planning/headshot-ai-prd.md`.
 
 ## What to build

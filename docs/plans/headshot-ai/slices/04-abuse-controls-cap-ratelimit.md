@@ -5,6 +5,10 @@ why: Enforced in-service before any Gemini call; the fingerprint library is an o
 ---
 # 04 — Abuse controls: 1-free-generation cap + IP/device rate limit
 
+**TL;DR — Goal:** Enforce "one free generation per account, ever" plus IP/device rate limiting, all
+checked before any Gemini call. **Unlocks:** the free tier can be opened to real users without runaway
+Gemini cost — repeat or abusive generation attempts are blocked before a single dollar is spent.
+
 > Source plan: `docs/plans/headshot-ai/plan.md` (§4-#6, §6-abuse, §12). Original PRD: `docs/planning/headshot-ai-prd.md`.
 
 ## What to build

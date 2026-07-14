@@ -5,6 +5,10 @@ why: Mostly reuses modules/payments, but the "clean full-res key is never expose
 ---
 # 05 — $5 unlock via Stripe + webhook `markUnlocked` + full-res signed-URL delivery
 
+**TL;DR — Goal:** Turn a watermarked preview set into a paid ($5) unlock via Stripe Checkout + webhook,
+then serve clean full-res images only through short-lived signed URLs. **Unlocks:** the monetization
+loop closes — users can actually pay and download their real, watermark-free headshots.
+
 > Source plan: `docs/plans/headshot-ai/plan.md` (§5.6–5.8, §6-payments). Original PRD: `docs/planning/headshot-ai-prd.md`.
 
 ## What to build

@@ -5,6 +5,11 @@ why: The face-detection approach is an open question (client vs server) and the 
 ---
 # 02 — Upload one photo + pre-flight face gate + R2 store + job creation
 
+**TL;DR — Goal:** Let a verified user upload one selfie, reject it up front if it isn't exactly one
+clear face (before any Gemini spend), and store an accepted photo privately with a pending job row.
+**Unlocks:** users can upload a photo and get instant accept/reject feedback; a `headshot_jobs` row +
+private R2 source now exist for slice 03 to generate from.
+
 > Source plan: `docs/plans/headshot-ai/plan.md` (§5.2, §6-upload, §7). Original PRD: `docs/planning/headshot-ai-prd.md`.
 
 ## What to build

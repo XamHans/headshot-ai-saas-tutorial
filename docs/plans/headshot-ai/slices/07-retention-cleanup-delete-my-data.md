@@ -5,6 +5,10 @@ why: Destructive data deletion + a scheduled-job mechanism (open question) — d
 ---
 # 07 — Retention: 30-day cleanup job + "delete my data"
 
+**TL;DR — Goal:** Auto-delete source photos and unpurchased outputs after 30 days, and let users delete
+their data on demand — while never touching purchased images. **Unlocks:** a GDPR/BIPA-compliant
+retention posture, safe to launch to the public.
+
 > Source plan: `docs/plans/headshot-ai/plan.md` (§5.9, §6-retention, §11). Original PRD: `docs/planning/headshot-ai-prd.md`.
 
 ## What to build
