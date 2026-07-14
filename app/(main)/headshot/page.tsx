@@ -1,5 +1,5 @@
 import { requireVerifiedConsented } from '@/lib/auth/gate';
-import { HeadshotUploader } from './components/headshot-uploader';
+import { HeadshotFlow } from './components/headshot-flow';
 
 // Gated generation flow. The slice-01 gate redirects unauthenticated /
 // unverified / unconsented visitors back to onboarding before they reach here.
@@ -16,7 +16,7 @@ export default async function HeadshotPage() {
           single, clear face before anything else.
         </p>
       </div>
-      <HeadshotUploader />
+      <HeadshotFlow />
     </div>
   );
 }
