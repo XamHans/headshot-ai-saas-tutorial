@@ -3,6 +3,7 @@
 import { useMutation } from '@tanstack/react-query';
 import { fetchApi } from '@/lib/api/client';
 import type { GenerateSetResult } from '@/modules/headshot/types';
+import { getDeviceFingerprint } from './use-device-fingerprint';
 
 export interface GenerateVars {
   jobId: string;
@@ -19,10 +20,15 @@ export interface GenerateVars {
  */
 export function useHeadshotGenerate() {
   return useMutation<GenerateSetResult, Error, GenerateVars>({
-    mutationFn: ({ jobId, styleId }) =>
-      fetchApi<GenerateSetResult>(`/api/headshots/${jobId}/generate`, {
+    mutationFn: async ({ jobId, styleId }) => {
+      // Compute the device fingerprint and send it in the JSON body (never a
+      // custom header — fetchApi replaces default headers). The route pairs it
+      // with the request IP for rate limiting.
+      const fingerprint = await getDeviceFingerprint();
+      return fetchApi<GenerateSetResult>(`/api/headshots/${jobId}/generate`, {
         method: 'POST',
-        body: JSON.stringify({ styleId }),
-      }),
+        body: JSON.stringify({ styleId, fingerprint }),
+      });
+    },
   });
 }

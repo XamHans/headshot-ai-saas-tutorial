@@ -5,6 +5,7 @@ import { HttpResponse, http } from 'msw';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createLogger } from '@/lib/logger';
 import type { ServiceContext } from '@/lib/services/context';
+import { user } from '@/modules/users/schema';
 import { server } from '@/tests/setup';
 import { getTestDb } from '@/tests/utils/test-database';
 import { headshotImages, headshotJobs } from '../schema';
@@ -47,6 +48,20 @@ async function seedPendingJob(db: ServiceContext['db'], overrides: Record<string
   return jobId;
 }
 
+/**
+ * Seed the owning user with their one free generation still available, so the
+ * slice-04 per-account cap lets a first (`pending`) generation proceed. The cap
+ * logic itself is covered exhaustively in generate-cap.service.test.ts.
+ */
+async function seedFreeUser(db: ServiceContext['db']) {
+  await db.insert(user).values({
+    id: userId,
+    email: `${userId}-${crypto.randomUUID()}@example.com`,
+    emailVerified: true,
+    biometricConsentAt: new Date(),
+  });
+}
+
 describe('HeadshotService.generateSet', () => {
   let service: HeadshotService;
   let db: ServiceContext['db'];
@@ -55,6 +70,7 @@ describe('HeadshotService.generateSet', () => {
   beforeEach(async () => {
     db = getTestDb();
     service = createHeadshotService({ db, logger: createLogger() });
+    await seedFreeUser(db);
 
     const sharp = (await import('sharp')).default;
     fakeImage = await sharp({
@@ -101,8 +117,10 @@ describe('HeadshotService.generateSet', () => {
     expect(genSpy).not.toHaveBeenCalled();
   });
 
-  it('refuses to generate a job that is already ready', async () => {
-    const jobId = await seedPendingJob(db, { status: 'ready' });
+  it('refuses to generate a ready job whose free regenerate is already used', async () => {
+    // A ready job with its one free regenerate available IS generatable (slice
+    // 04); only once `freeRegenUsed` is set does it become non-generatable.
+    const jobId = await seedPendingJob(db, { status: 'ready', freeRegenUsed: true });
     const result = await service.generateSet(jobId, userId, 'corporate-linkedin');
 
     expect(result.success).toBe(false);

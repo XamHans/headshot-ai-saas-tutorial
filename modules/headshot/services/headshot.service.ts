@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import { isDisposableEmail } from '@/lib/auth/disposable-domains';
 import { compositeWatermark } from '@/lib/media/watermark';
 import type { Result } from '@/lib/result';
@@ -278,6 +278,34 @@ export class HeadshotService {
     if (!guard.success) return guard;
     const { job, style } = guard.data;
 
+    // A `pending` job is a brand-new (never-attempted) generation — this is the
+    // one place the per-account "one free generation, ever" cap is consumed.
+    // Failed-job retries and free-regens of a `ready` job skip this entirely.
+    const isFirstAttempt = job.status === 'pending';
+    // A `ready` job that reaches here still had `freeRegenUsed === false` (the
+    // guard enforced that) — this attempt is the single free regenerate.
+    const isFreeRegen = job.status === 'ready';
+
+    if (isFirstAttempt) {
+      const claimed = await this.consumeFreeGeneration(userId);
+      if (!claimed) {
+        // Slot already taken. Leave the job `pending` (no `generating`, no
+        // spend) so a later paid path can still run it.
+        this.logger.info('Free generation already used — payment required', {
+          operation: 'generateSet',
+          userId,
+          jobId,
+        });
+        return {
+          success: false,
+          error: {
+            code: 'PAYMENT_REQUIRED',
+            message: "You've used your free generation. Unlock more with a purchase.",
+          },
+        };
+      }
+    }
+
     // 3. Flip to generating + persist styleId.
     await this.ctx.db
       .update(headshotJobs)
@@ -366,7 +394,13 @@ export class HeadshotService {
 
       const [updated] = await this.ctx.db
         .update(headshotJobs)
-        .set({ status: 'ready', updatedAt: new Date() })
+        .set({
+          status: 'ready',
+          updatedAt: new Date(),
+          // A successful free regenerate consumes the per-job allowance so the
+          // same job can't be regenerated for free again.
+          ...(isFreeRegen ? { freeRegenUsed: true } : {}),
+        })
         .where(eq(headshotJobs.id, jobId))
         .returning();
 
@@ -421,7 +455,10 @@ export class HeadshotService {
       return { success: false, error: { code: 'VALIDATION_ERROR', message: 'Unknown style.' } };
     }
 
-    if (job.status !== 'pending' && job.status !== 'failed') {
+    // Generatable statuses: `pending` (first attempt), `failed` (free retry),
+    // and `ready` ONLY when the one free regenerate hasn't been used yet.
+    const isFreeRegenAvailable = job.status === 'ready' && job.freeRegenUsed === false;
+    if (job.status !== 'pending' && job.status !== 'failed' && !isFreeRegenAvailable) {
       return {
         success: false,
         error: {
@@ -475,6 +512,22 @@ export class HeadshotService {
       return null;
     }
     return results.map((r) => (r.success ? r.data.buffer : Buffer.alloc(0)));
+  }
+
+  /**
+   * Race-safe consumption of the per-account "one free generation, ever" slot.
+   * A single conditional UPDATE stamps `headshotFreeGenerationUsedAt` only if it
+   * is currently NULL; the `RETURNING` row proves this caller won the slot. Two
+   * concurrent first-generations therefore can't both win — exactly one gets a
+   * returned row. Returns `true` if this call claimed the free slot.
+   */
+  private async consumeFreeGeneration(userId: string): Promise<boolean> {
+    const claimed = await this.ctx.db
+      .update(user)
+      .set({ headshotFreeGenerationUsedAt: new Date(), updatedAt: new Date() })
+      .where(and(eq(user.id, userId), isNull(user.headshotFreeGenerationUsedAt)))
+      .returning({ id: user.id });
+    return claimed.length > 0;
   }
 
   /** Flip a job to `failed` (best-effort; swallow secondary errors). */

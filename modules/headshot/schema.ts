@@ -1,4 +1,4 @@
-import { boolean, pgSchema, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
+import { boolean, integer, pgSchema, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
 
 // Use 'test' schema for test environment, 'public' for production
 const isTest = process.env.NODE_ENV === 'test';
@@ -28,6 +28,18 @@ export const headshotJobs = tableHelper('headshot_jobs', {
   updatedAt: timestamp('updated_at')
     .$defaultFn(() => new Date())
     .notNull(),
+});
+
+/**
+ * Fixed-window rate-limit counters for the generation endpoint, keyed on
+ * `ip + fingerprint`. One row per key per window; the count is incremented
+ * atomically (upsert with an increment on conflict). A request is throttled
+ * once `count` exceeds the per-window limit before the window rolls over.
+ */
+export const headshotRateLimits = tableHelper('headshot_rate_limits', {
+  key: text('key').primaryKey(),
+  windowStart: timestamp('window_start').notNull(),
+  count: integer('count').default(0).notNull(),
 });
 
 /**

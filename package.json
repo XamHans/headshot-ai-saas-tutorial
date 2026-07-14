@@ -43,6 +43,7 @@
     "@cloudflare/workers-types": "latest",
     "@edge-runtime/vm": "latest",
     "@electric-sql/pglite": "latest",
+    "@fingerprintjs/fingerprintjs": "^5.2.0",
     "@google/genai": "latest",
     "@hookform/resolvers": "^3.9.1",
     "@langfuse/otel": "^4.2.0",
