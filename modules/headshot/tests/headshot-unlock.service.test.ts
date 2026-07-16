@@ -174,4 +174,39 @@ describe('HeadshotService unlock + full-res', () => {
       if (!result.success) expect(result.error.code).toBe('JOB_NOT_FOUND');
     });
   });
+
+  describe('getJobWithPreviews', () => {
+    it('returns the job and fresh preview URLs for its images', async () => {
+      await seedReadyJob();
+
+      const result = await service.getJobWithPreviews('unlock-job', ownerId);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.job.id).toBe('unlock-job');
+        expect(result.data.previews).toHaveLength(2);
+        for (const preview of result.data.previews) {
+          expect(preview.previewUrl).toContain('previews/');
+        }
+      }
+
+      for (const call of signedUrlSpy.mock.calls) {
+        expect(call[0]).toMatch(/^previews\//);
+      }
+    });
+
+    it("denies another user's job with JOB_NOT_FOUND (no existence leak)", async () => {
+      await seedReadyJob();
+
+      const result = await service.getJobWithPreviews('unlock-job', otherId);
+      expect(result.success).toBe(false);
+      if (!result.success) expect(result.error.code).toBe('JOB_NOT_FOUND');
+      expect(signedUrlSpy).not.toHaveBeenCalled();
+    });
+
+    it('returns JOB_NOT_FOUND for a missing job', async () => {
+      const result = await service.getJobWithPreviews('no-such-job', ownerId);
+      expect(result.success).toBe(false);
+      if (!result.success) expect(result.error.code).toBe('JOB_NOT_FOUND');
+    });
+  });
 });

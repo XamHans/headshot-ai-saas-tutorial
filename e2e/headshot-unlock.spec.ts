@@ -169,6 +169,15 @@ test.describe('headshot unlock ($5 → clean full-res)', () => {
       timeout: 60_000,
     });
 
+    // "View & download your headshots" must land directly on this job's
+    // results with working downloads — not a blank/reset upload wizard. The
+    // link carries ?job=<id> precisely so a fresh page load (which resets the
+    // wizard's in-memory React state) can rehydrate from the server instead.
+    await page.getByRole('link', { name: /view.*download.*headshots/i }).click();
+    await page.waitForURL('**/headshot?job=**');
+    await expect(page.getByTestId('headshot-downloads')).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId('headshot-download-link')).toHaveCount(3);
+
     // --- Contract #1 + #3: full-res now available; 3 short-lived presigned URLs. ---
     const fullRes = await page.request.get(`/api/headshots/${jobId}/full-res`);
     expect(fullRes.ok()).toBeTruthy();

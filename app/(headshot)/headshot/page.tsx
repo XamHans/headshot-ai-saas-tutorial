@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import { requireVerifiedConsented } from '@/lib/auth/gate';
 import { HeadshotFlow } from './components/headshot-flow';
 
@@ -16,7 +17,9 @@ export default async function HeadshotPage() {
           single, clear face before anything else.
         </p>
       </div>
-      <HeadshotFlow />
+      <Suspense fallback={null}>
+        <HeadshotFlow />
+      </Suspense>
     </div>
   );
 }

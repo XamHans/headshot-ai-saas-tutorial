@@ -23,6 +23,7 @@ export function PaymentReturnStatus() {
   if (!sessionId) return null;
 
   const unlocked = data?.unlocked === true;
+  const jobHref = data?.id ? `/headshot?job=${data.id}` : '/headshot';
 
   return (
     <div
@@ -37,7 +38,7 @@ export function PaymentReturnStatus() {
             Your full-resolution headshots are unlocked.
           </div>
           <Button asChild className="w-full">
-            <Link href="/headshot">View &amp; download your headshots</Link>
+            <Link href={jobHref}>View &amp; download your headshots</Link>
           </Button>
         </div>
       ) : (

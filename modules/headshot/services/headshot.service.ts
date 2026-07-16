@@ -584,6 +584,61 @@ export class HeadshotService {
   }
 
   /**
+   * Load a job the caller owns, with fresh signed preview URLs for its images.
+   * Used to redisplay results/downloads on a fresh page load of `/headshot`
+   * (e.g. after the payment-return redirect), where the wizard's in-memory
+   * React state has been reset and there's nothing else to hydrate it from.
+   */
+  async getJobWithPreviews(jobId: string, userId: string): Promise<Result<GenerateSetResult>> {
+    this.logger.info('Loading job with previews', {
+      operation: 'getJobWithPreviews',
+      jobId,
+      userId,
+    });
+
+    try {
+      const [job] = await this.ctx.db
+        .select()
+        .from(headshotJobs)
+        .where(eq(headshotJobs.id, jobId))
+        .limit(1);
+
+      if (!job || job.userId !== userId) {
+        return { success: false, error: { code: 'JOB_NOT_FOUND', message: 'Job not found.' } };
+      }
+
+      const images = await this.ctx.db
+        .select()
+        .from(headshotImages)
+        .where(eq(headshotImages.jobId, jobId));
+
+      const previews: GenerateSetResult['previews'] = [];
+      for (const image of images) {
+        if (!image.previewKey) continue;
+        const previewUrl = await r2Storage.getSignedUrl(image.previewKey);
+        previews.push({ id: image.id, styleVariant: image.styleVariant, previewUrl });
+      }
+
+      return { success: true, data: { job, previews } };
+    } catch (error) {
+      this.logger.error('Failed to load job with previews', {
+        error: error instanceof Error ? error : new Error(String(error)),
+        operation: 'getJobWithPreviews',
+        jobId,
+        userId,
+      });
+      return {
+        success: false,
+        error: {
+          code: 'EXTERNAL_SERVICE_ERROR',
+          message: 'Failed to load your headshots — please try again.',
+          cause: error,
+        },
+      };
+    }
+  }
+
+  /**
    * Guard preamble for `generateSet`: loads the job, enforces ownership (a
    * non-owner gets `JOB_NOT_FOUND` — no existence leak), validates the styleId,
    * and enforces the status guard (only `pending`/`failed` may generate).

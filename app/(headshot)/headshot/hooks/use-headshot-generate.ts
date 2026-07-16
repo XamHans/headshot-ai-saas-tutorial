@@ -1,6 +1,6 @@
 'use client';
 
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { fetchApi } from '@/lib/api/client';
 import type { GenerateSetResult } from '@/modules/headshot/types';
 import { getDeviceFingerprint } from './use-device-fingerprint';
@@ -30,5 +30,19 @@ export function useHeadshotGenerate() {
         body: JSON.stringify({ styleId, fingerprint }),
       });
     },
+  });
+}
+
+/**
+ * Loads an existing job + fresh preview URLs by id. Used to redisplay results
+ * on a fresh `/headshot?job=<id>` page load (e.g. after the payment-return
+ * redirect), since the wizard's step state is otherwise purely in-memory and
+ * resets on navigation.
+ */
+export function useHeadshotJob(jobId: string | null) {
+  return useQuery<GenerateSetResult, Error>({
+    queryKey: ['headshot-job', jobId],
+    queryFn: () => fetchApi<GenerateSetResult>(`/api/headshots/${jobId}`),
+    enabled: Boolean(jobId),
   });
 }

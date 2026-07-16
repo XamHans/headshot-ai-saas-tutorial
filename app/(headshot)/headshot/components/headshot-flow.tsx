@@ -1,13 +1,14 @@
 'use client';
 
 import { Loader2, RefreshCw } from 'lucide-react';
-import { useState } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { DEFAULT_STYLE_ID } from '@/modules/headshot/styles';
 import type { HeadshotJob, HeadshotPreviewDTO } from '@/modules/headshot/types';
-import { useHeadshotGenerate } from '../hooks/use-headshot-generate';
+import { useHeadshotGenerate, useHeadshotJob } from '../hooks/use-headshot-generate';
 import { HeadshotResults } from './headshot-results';
 import { HeadshotUploader } from './headshot-uploader';
 import { StylePicker } from './style-picker';
@@ -34,6 +35,27 @@ export function HeadshotFlow() {
   const [previews, setPreviews] = useState<HeadshotPreviewDTO[] | null>(null);
   const generate = useHeadshotGenerate();
 
+  // A `?job=<id>` query param (e.g. from the payment-return "view & download"
+  // link) means: skip the upload wizard and load that job's results directly —
+  // the wizard's step state above is otherwise purely in-memory and there is
+  // nothing to hydrate it from on a fresh page load.
+  const searchParams = useSearchParams();
+  const jobParam = searchParams.get('job');
+  const existingJob = useHeadshotJob(jobParam);
+
+  useEffect(() => {
+    if (existingJob.data) {
+      setJob(existingJob.data.job);
+      setPreviews(existingJob.data.previews);
+    }
+  }, [existingJob.data]);
+
+  useEffect(() => {
+    if (existingJob.isError) {
+      toast.error(existingJob.error.message);
+    }
+  }, [existingJob.isError, existingJob.error]);
+
   const startGenerate = () => {
     if (!job) return;
     setPreviews(null);
@@ -53,6 +75,22 @@ export function HeadshotFlow() {
   };
 
   const currentIndex = previews ? 2 : job ? 1 : 0;
+
+  // Loading an existing job (via ?job=<id>) takes priority over the wizard —
+  // don't flash the upload step while it's in flight.
+  if (jobParam && existingJob.isPending) {
+    return (
+      // biome-ignore lint/a11y/useSemanticElements: a polite live status region, not an <output> for a form result.
+      <div
+        className="flex items-center gap-2 text-sm text-muted-foreground"
+        role="status"
+        aria-live="polite"
+      >
+        <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+        Loading your headshots…
+      </div>
+    );
+  }
 
   return (
     <div className="flex w-full flex-col gap-8">
