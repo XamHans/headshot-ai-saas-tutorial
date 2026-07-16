@@ -1,6 +1,7 @@
 import { join } from 'node:path';
 import { expect, test } from '@playwright/test';
 import postgres from 'postgres';
+import { FREE_GENERATION_LIMIT } from '@/modules/headshot/services/headshot.service';
 
 /**
  * E2E for slice 04 — abuse controls (one-free-generation cap + free regenerate).
@@ -49,13 +50,13 @@ async function readMagicLinkToken(email: string): Promise<string> {
 
 async function userAndJob(
   email: string,
-): Promise<{ free_generation_used_at: string | null; free_regen_used: boolean; status: string }> {
+): Promise<{ free_generation_count: number; free_regen_used: boolean; status: string }> {
   const db = sql();
   try {
     const rows = await db<
-      { free_generation_used_at: string | null; free_regen_used: boolean; status: string }[]
+      { free_generation_count: number; free_regen_used: boolean; status: string }[]
     >`
-      SELECT u.headshot_free_generation_used_at AS free_generation_used_at,
+      SELECT u.headshot_free_generation_count AS free_generation_count,
              j.free_regen_used, j.status
       FROM "headshot_jobs" j
       JOIN "user" u ON u.id = j.user_id
@@ -63,6 +64,25 @@ async function userAndJob(
       ORDER BY j.created_at DESC LIMIT 1
     `;
     return rows[0];
+  } finally {
+    await db.end();
+  }
+}
+
+/**
+ * Directly exhaust the remaining free-generation slots for a user, so the
+ * "cap reached" assertion doesn't require paying for extra real Gemini calls
+ * just to burn through FREE_GENERATION_LIMIT — this test already covers one
+ * real free generation (scenario 1) and one real free regenerate (scenario 3);
+ * that's enough to prove the happy paths without tripling Gemini spend.
+ */
+async function exhaustFreeGenerations(email: string): Promise<void> {
+  const db = sql();
+  try {
+    await db`
+      UPDATE "user" SET headshot_free_generation_count = ${FREE_GENERATION_LIMIT}
+      WHERE email = ${email}
+    `;
   } finally {
     await db.end();
   }
@@ -110,9 +130,10 @@ test.describe('headshot abuse controls', () => {
     await page.getByRole('button', { name: /^generate$/i }).click();
     await expect(page.getByTestId('headshot-previews')).toBeVisible({ timeout: 120_000 });
 
-    // Free allowance now consumed; free regenerate still available.
+    // One of FREE_GENERATION_LIMIT free generations now consumed; free regenerate
+    // still available (a separate, per-job allowance).
     let state = await userAndJob(email);
-    expect(state.free_generation_used_at).not.toBeNull();
+    expect(state.free_generation_count).toBe(1);
     expect(state.free_regen_used).toBe(false);
     expect(state.status).toBe('ready');
 
@@ -122,9 +143,11 @@ test.describe('headshot abuse controls', () => {
     await page.getByRole('button', { name: /^generate$/i }).click();
     await expect(page.getByTestId('headshot-previews')).toBeVisible({ timeout: 120_000 });
 
-    // The one free regenerate is now used.
+    // The one free regenerate is now used; the per-account free-generation count
+    // is untouched by regenerating (still 1 — the regen is a separate allowance).
     state = await userAndJob(email);
     expect(state.free_regen_used).toBe(true);
+    expect(state.free_generation_count).toBe(1);
     expect(state.status).toBe('ready');
 
     // 3. A THIRD attempt on the SAME job is blocked before any spend. Assert on
@@ -141,8 +164,12 @@ test.describe('headshot abuse controls', () => {
     expect(thirdBody.code).toBe('JOB_NOT_GENERATABLE');
 
     // 4. A BRAND-NEW job for the same account is blocked with payment-required
-    //    (HTTP 402) — also pre-spend. Re-upload a fresh photo to create a new
-    //    pending job, then generate.
+    //    (HTTP 402) — also pre-spend. Only one of FREE_GENERATION_LIMIT slots was
+    //    consumed so far (the regen doesn't count), so directly exhaust the
+    //    remaining slots rather than paying for two more real Gemini generations
+    //    just to prove the cap — the happy path is already covered above.
+    await exhaustFreeGenerations(email);
+
     await page.goto('/headshot');
     await uploadPortrait(page);
     const newJobAttempt = page.waitForResponse(

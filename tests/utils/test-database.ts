@@ -56,7 +56,8 @@ export async function setupTestDatabase() {
     await testClient`SET search_path TO test`;
     await testClient.unsafe(`
       ALTER TABLE "user" ADD COLUMN IF NOT EXISTS "biometric_consent_at" timestamp;
-      ALTER TABLE "user" ADD COLUMN IF NOT EXISTS "headshot_free_generation_used_at" timestamp;
+      ALTER TABLE "user" ADD COLUMN IF NOT EXISTS "headshot_free_generation_count" integer DEFAULT 0 NOT NULL;
+      ALTER TABLE "user" DROP COLUMN IF EXISTS "headshot_free_generation_used_at";
 
       CREATE TABLE IF NOT EXISTS "headshot_rate_limits" (
         "key" text PRIMARY KEY NOT NULL,

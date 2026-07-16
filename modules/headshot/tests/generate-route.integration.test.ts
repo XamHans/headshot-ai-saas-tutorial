@@ -5,6 +5,7 @@ import { user } from '@/modules/users/schema';
 import { getTestDb } from '@/tests/utils/test-database';
 import { headshotImages, headshotJobs } from '../schema';
 import * as generator from '../services/headshot-generator';
+import { FREE_GENERATION_LIMIT } from '../services/headshot.service';
 import { RATE_LIMIT_MAX } from '../services/rate-limit.service';
 
 /**
@@ -15,7 +16,7 @@ import { RATE_LIMIT_MAX } from '../services/rate-limit.service';
  * service context are pointed at the real test DB; the Gemini boundary is spied
  * so we can assert throttled requests make ZERO model calls. No real Gemini
  * spend — the rate limit blocks before the service is ever reached, and the
- * seeded user has already spent its free generation so even un-throttled
+ * seeded user has already exhausted its free generations so even un-throttled
  * requests bail cheaply at PAYMENT_REQUIRED.
  */
 
@@ -94,7 +95,7 @@ describe('POST /api/headshots/[id]/generate — rate limiting', () => {
       email: `${userId}-${crypto.randomUUID()}@example.com`,
       emailVerified: true,
       biometricConsentAt: new Date(),
-      headshotFreeGenerationUsedAt: new Date(),
+      headshotFreeGenerationCount: FREE_GENERATION_LIMIT,
     });
   });
 

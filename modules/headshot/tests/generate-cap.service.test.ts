@@ -10,12 +10,12 @@ import { server } from '@/tests/setup';
 import { getTestDb } from '@/tests/utils/test-database';
 import { headshotImages, headshotJobs } from '../schema';
 import type { HeadshotService } from '../services/headshot.service';
-import { createHeadshotService } from '../services/headshot.service';
+import { createHeadshotService, FREE_GENERATION_LIMIT } from '../services/headshot.service';
 import * as generator from '../services/headshot-generator';
 
 /**
  * Service tests for the slice-04 abuse controls that live in the SERVICE:
- *   1. one free generation per account, ever (per-account cap)
+ *   1. FREE_GENERATION_LIMIT free generations per account, ever (per-account cap)
  *   3. free regenerate of a ready job (per-job `freeRegenUsed`)
  *
  * Same discipline as generate-set.service.test.ts: spy ONLY the Gemini boundary
@@ -94,7 +94,7 @@ describe('HeadshotService.generateSet — abuse controls (cap + free regen)', ()
   });
 
   // Scenario 1
-  it('first generation is free and consumes the per-account free allowance', async () => {
+  it('first generation is free and consumes one of the per-account free allowance', async () => {
     await seedUser(db);
     const jobId = await seedJob(db);
 
@@ -105,12 +105,26 @@ describe('HeadshotService.generateSet — abuse controls (cap + free regen)', ()
     expect(genSpy).toHaveBeenCalledTimes(3);
 
     const [u] = await db.select().from(user).where(eq(user.id, userId));
-    expect(u.headshotFreeGenerationUsedAt).not.toBeNull();
+    expect(u.headshotFreeGenerationCount).toBe(1);
+  });
+
+  it('the second and third generations (new jobs, same account) are also free', async () => {
+    await seedUser(db);
+
+    for (let i = 1; i <= FREE_GENERATION_LIMIT; i++) {
+      const jobId = await seedJob(db);
+      const result = await service.generateSet(jobId, userId, 'corporate-linkedin');
+      expect(result.success).toBe(true);
+
+      const [u] = await db.select().from(user).where(eq(user.id, userId));
+      expect(u.headshotFreeGenerationCount).toBe(i);
+    }
+    expect(genSpy).toHaveBeenCalledTimes(3 * FREE_GENERATION_LIMIT);
   });
 
   // Scenario 2
-  it('second generation (new job, same account) requires payment before any spend', async () => {
-    await seedUser(db, { headshotFreeGenerationUsedAt: new Date() });
+  it(`a ${FREE_GENERATION_LIMIT + 1}th generation requires payment once the cap is exhausted`, async () => {
+    await seedUser(db, { headshotFreeGenerationCount: FREE_GENERATION_LIMIT });
     const jobId = await seedJob(db);
 
     const result = await service.generateSet(jobId, userId, 'corporate-linkedin');
@@ -128,8 +142,8 @@ describe('HeadshotService.generateSet — abuse controls (cap + free regen)', ()
 
   // Scenario 3
   it('free regenerate of a ready job succeeds without payment and marks freeRegenUsed', async () => {
-    // Account already used its free generation on the first attempt.
-    await seedUser(db, { headshotFreeGenerationUsedAt: new Date() });
+    // Account already exhausted its free generations.
+    await seedUser(db, { headshotFreeGenerationCount: FREE_GENERATION_LIMIT });
     const jobId = await seedJob(db, {
       status: 'ready',
       freeRegenUsed: false,
@@ -145,14 +159,14 @@ describe('HeadshotService.generateSet — abuse controls (cap + free regen)', ()
     }
     expect(genSpy).toHaveBeenCalledTimes(3);
 
-    // The per-account free-generation slot is NOT touched by the regen path — it
-    // was already consumed; the timestamp must remain from the seed (unchanged).
+    // The per-account free-generation count is NOT touched by the regen path —
+    // it was already at the cap and must remain unchanged.
     const [u] = await db.select().from(user).where(eq(user.id, userId));
-    expect(u.headshotFreeGenerationUsedAt).not.toBeNull();
+    expect(u.headshotFreeGenerationCount).toBe(FREE_GENERATION_LIMIT);
   });
 
   it('a second regenerate of the same job (freeRegenUsed=true) is blocked as not generatable', async () => {
-    await seedUser(db, { headshotFreeGenerationUsedAt: new Date() });
+    await seedUser(db, { headshotFreeGenerationCount: FREE_GENERATION_LIMIT });
     const jobId = await seedJob(db, {
       status: 'ready',
       freeRegenUsed: true,
@@ -166,8 +180,8 @@ describe('HeadshotService.generateSet — abuse controls (cap + free regen)', ()
     expect(genSpy).not.toHaveBeenCalled();
   });
 
-  it('after a free regenerate, a brand-new job still requires payment', async () => {
-    await seedUser(db, { headshotFreeGenerationUsedAt: new Date() });
+  it('after a free regenerate, a brand-new job still requires payment once the cap is exhausted', async () => {
+    await seedUser(db, { headshotFreeGenerationCount: FREE_GENERATION_LIMIT });
     // Regenerate the existing ready job (consumes freeRegenUsed on that job).
     const readyJob = await seedJob(db, { status: 'ready', freeRegenUsed: false });
     const regen = await service.generateSet(readyJob, userId, 'corporate-linkedin');
@@ -185,8 +199,8 @@ describe('HeadshotService.generateSet — abuse controls (cap + free regen)', ()
   });
 
   it('retrying a failed job does NOT re-consume the per-account free allowance', async () => {
-    // Slot already consumed on the original pending attempt; the job then failed.
-    await seedUser(db, { headshotFreeGenerationUsedAt: new Date() });
+    // One slot already consumed on the original pending attempt; the job then failed.
+    await seedUser(db, { headshotFreeGenerationCount: 1 });
     const jobId = await seedJob(db, { status: 'failed' });
 
     const result = await service.generateSet(jobId, userId, 'corporate-linkedin');
@@ -195,10 +209,14 @@ describe('HeadshotService.generateSet — abuse controls (cap + free regen)', ()
     expect(result.success).toBe(true);
     if (result.success) expect(result.data.job.status).toBe('ready');
     expect(genSpy).toHaveBeenCalledTimes(3);
+
+    const [u] = await db.select().from(user).where(eq(user.id, userId));
+    expect(u.headshotFreeGenerationCount).toBe(1);
   });
 
-  it('concurrent first generations: only one wins the free slot; the other requires payment', async () => {
-    await seedUser(db);
+  it('concurrent generations for the last free slot: only one wins; the other requires payment', async () => {
+    // One slot remaining out of FREE_GENERATION_LIMIT.
+    await seedUser(db, { headshotFreeGenerationCount: FREE_GENERATION_LIMIT - 1 });
     const jobA = await seedJob(db);
     const jobB = await seedJob(db);
 
@@ -214,5 +232,8 @@ describe('HeadshotService.generateSet — abuse controls (cap + free regen)', ()
     for (const f of failures) {
       if (!f.success) expect(f.error.code).toBe('PAYMENT_REQUIRED');
     }
+
+    const [u] = await db.select().from(user).where(eq(user.id, userId));
+    expect(u.headshotFreeGenerationCount).toBe(FREE_GENERATION_LIMIT);
   });
 });

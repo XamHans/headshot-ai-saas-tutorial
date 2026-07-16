@@ -1,4 +1,4 @@
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq, lt, sql } from 'drizzle-orm';
 import { isDisposableEmail } from '@/lib/auth/disposable-domains';
 import { compositeWatermark } from '@/lib/media/watermark';
 import type { Result } from '@/lib/result';
@@ -22,6 +22,9 @@ import * as generator from './headshot-generator';
 
 /** Per-Gemini-call hard timeout. Two attempts × 25s ≈ 50s worst case. */
 const GENERATION_TIMEOUT_MS = 25_000;
+
+/** Per-account free-generation cap — how many new (`pending`) jobs a single account may generate for free, ever. */
+export const FREE_GENERATION_LIMIT = 3;
 
 /**
  * Expiry (seconds) for the post-unlock full-res signed URLs. Deliberately
@@ -287,8 +290,9 @@ export class HeadshotService {
     const { job, style } = guard.data;
 
     // A `pending` job is a brand-new (never-attempted) generation — this is the
-    // one place the per-account "one free generation, ever" cap is consumed.
-    // Failed-job retries and free-regens of a `ready` job skip this entirely.
+    // one place the per-account `FREE_GENERATION_LIMIT` free-generation cap is
+    // consumed. Failed-job retries and free-regens of a `ready` job skip this
+    // entirely.
     const isFirstAttempt = job.status === 'pending';
     // A `ready` job that reaches here still had `freeRegenUsed === false` (the
     // guard enforced that) — this attempt is the single free regenerate.
@@ -299,7 +303,7 @@ export class HeadshotService {
       if (!claimed) {
         // Slot already taken. Leave the job `pending` (no `generating`, no
         // spend) so a later paid path can still run it.
-        this.logger.info('Free generation already used — payment required', {
+        this.logger.info('Free generation cap reached — payment required', {
           operation: 'generateSet',
           userId,
           jobId,
@@ -308,7 +312,7 @@ export class HeadshotService {
           success: false,
           error: {
             code: 'PAYMENT_REQUIRED',
-            message: "You've used your free generation. Unlock more with a purchase.",
+            message: "You've used all your free generations. Unlock more with a purchase.",
           },
         };
       }
@@ -656,17 +660,22 @@ export class HeadshotService {
   }
 
   /**
-   * Race-safe consumption of the per-account "one free generation, ever" slot.
-   * A single conditional UPDATE stamps `headshotFreeGenerationUsedAt` only if it
-   * is currently NULL; the `RETURNING` row proves this caller won the slot. Two
-   * concurrent first-generations therefore can't both win — exactly one gets a
-   * returned row. Returns `true` if this call claimed the free slot.
+   * Race-safe consumption of one of the account's `FREE_GENERATION_LIMIT` free
+   * generation slots. A single conditional UPDATE increments
+   * `headshotFreeGenerationCount` only while it is still below the cap; the
+   * `RETURNING` row proves this caller won a slot. Postgres serializes
+   * concurrent UPDATEs on the same row, so once the cap is reached no more
+   * callers can win — exactly `FREE_GENERATION_LIMIT` total across any number
+   * of concurrent first-generations. Returns `true` if this call claimed a slot.
    */
   private async consumeFreeGeneration(userId: string): Promise<boolean> {
     const claimed = await this.ctx.db
       .update(user)
-      .set({ headshotFreeGenerationUsedAt: new Date(), updatedAt: new Date() })
-      .where(and(eq(user.id, userId), isNull(user.headshotFreeGenerationUsedAt)))
+      .set({
+        headshotFreeGenerationCount: sql`${user.headshotFreeGenerationCount} + 1`,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(user.id, userId), lt(user.headshotFreeGenerationCount, FREE_GENERATION_LIMIT)))
       .returning({ id: user.id });
     return claimed.length > 0;
   }

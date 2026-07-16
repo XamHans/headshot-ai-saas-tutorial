@@ -1,4 +1,4 @@
-import { boolean, pgSchema, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
+import { boolean, integer, pgSchema, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
 
 // Use 'test' schema for test environment, 'public' for production
 const isTest = process.env.NODE_ENV === 'test';
@@ -20,10 +20,11 @@ export const user = tableHelper('user', {
   provider: text('provider'),
   providerId: text('provider_id'),
   biometricConsentAt: timestamp('biometric_consent_at'),
-  // One-free-generation cap: stamped the first time a user consumes their single
-  // free generation, ever. Consumed via a race-safe conditional UPDATE (set only
-  // when currently NULL) so two concurrent first-generations can't both win.
-  headshotFreeGenerationUsedAt: timestamp('headshot_free_generation_used_at'),
+  // Free-generation cap: how many of the account's free generations (see
+  // FREE_GENERATION_LIMIT in headshot.service.ts) have been consumed. Incremented
+  // via a race-safe conditional UPDATE (only when count < limit) so concurrent
+  // first-generations can't all win once the cap is reached.
+  headshotFreeGenerationCount: integer('headshot_free_generation_count').default(0).notNull(),
   createdAt: timestamp('created_at')
     .$defaultFn(() => new Date())
     .notNull(),
