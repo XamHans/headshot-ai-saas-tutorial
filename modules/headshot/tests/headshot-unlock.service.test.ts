@@ -135,12 +135,17 @@ describe('HeadshotService unlock + full-res', () => {
         }
       }
 
-      // Every signed URL carried a short expiry (minutes, not the 3600s default).
+      // Every signed URL carried a short expiry (minutes, not the 3600s default)
+      // AND forced Content-Disposition: attachment — the anchor `download`
+      // attribute is silently ignored by browsers for cross-origin R2 URLs, so
+      // without a response-header override clicking "Download" just opens the
+      // image inline instead of saving it.
       expect(signedUrlSpy).toHaveBeenCalled();
       for (const call of signedUrlSpy.mock.calls) {
         expect(call[0]).toMatch(/^full\//);
         expect(call[1]).toBeLessThanOrEqual(600);
         expect(call[1]).toBeGreaterThan(0);
+        expect(call[2]?.responseContentDisposition).toMatch(/^attachment/);
       }
     });
 

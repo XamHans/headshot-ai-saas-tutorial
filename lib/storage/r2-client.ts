@@ -63,11 +63,16 @@ export class R2StorageClient {
     return `https://${this.bucketName}.${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${key}`;
   }
 
-  async getSignedUrl(key: string, expiresIn = 3600) {
+  async getSignedUrl(
+    key: string,
+    expiresIn = 3600,
+    options?: { responseContentDisposition?: string },
+  ) {
     const client = this.checkClient();
     const command = new GetObjectCommand({
       Bucket: this.bucketName,
       Key: key,
+      ResponseContentDisposition: options?.responseContentDisposition,
     });
 
     return await getSignedUrl(client, command, { expiresIn });

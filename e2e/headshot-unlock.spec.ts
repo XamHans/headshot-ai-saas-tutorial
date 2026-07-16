@@ -182,9 +182,13 @@ test.describe('headshot unlock ($5 → clean full-res)', () => {
       expect(expiresMatch).not.toBeNull();
       expect(Number(expiresMatch?.[1])).toBeLessThanOrEqual(600);
 
-      // …and the object is really downloadable (real 200 from R2).
+      // …and the object is really downloadable (real 200 from R2), forcing a
+      // save-as rather than an inline open — the anchor `download` attribute is
+      // silently ignored by browsers for cross-origin URLs, so this must come
+      // from the actual Content-Disposition response header.
       const asset = await page.request.get(dto.fullUrl);
       expect(asset.status()).toBe(200);
+      expect(asset.headers()['content-disposition']).toMatch(/^attachment/);
     }
   });
 });

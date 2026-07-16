@@ -550,9 +550,17 @@ export class HeadshotService {
         .where(eq(headshotImages.jobId, jobId));
 
       const dtos: HeadshotFullResDTO[] = [];
-      for (const image of images) {
+      for (let i = 0; i < images.length; i++) {
+        const image = images[i];
         if (!image.fullKey) continue;
-        const fullUrl = await r2Storage.getSignedUrl(image.fullKey, FULL_RES_URL_EXPIRY_SECONDS);
+        // Force a real download rather than an inline open: the anchor `download`
+        // attribute is silently ignored by browsers for cross-origin URLs (R2's
+        // domain differs from the app's), so without this response-header
+        // override clicking "Download" just opens the image in the browser.
+        const filename = `headshot-${image.styleVariant ?? 'photo'}-${i + 1}.jpg`;
+        const fullUrl = await r2Storage.getSignedUrl(image.fullKey, FULL_RES_URL_EXPIRY_SECONDS, {
+          responseContentDisposition: `attachment; filename="${filename}"`,
+        });
         dtos.push({ id: image.id, styleVariant: image.styleVariant, fullUrl });
       }
 
