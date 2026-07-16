@@ -3,11 +3,11 @@ import { GeistSans } from 'geist/font/sans';
 import type { Metadata } from 'next';
 import Script from 'next/script';
 import type React from 'react';
+import { Toaster as SonnerToaster } from 'sonner';
 import { Footer } from '@/components/footer';
 import { ThemeProvider } from '@/components/theme-provider';
 import { Toaster } from '@/components/ui/toaster';
 import { QueryProvider } from '@/lib/query/provider';
-import { Toaster as SonnerToaster } from 'sonner';
 import './globals.css';
 
 export const metadata: Metadata = {

@@ -58,6 +58,17 @@ export interface HeadshotPreviewDTO {
 }
 
 /**
+ * Post-unlock DTO. Carries a short-lived signed URL to the CLEAN, full-res
+ * image. Only ever produced by `getFullResUrls` for an unlocked, owned job —
+ * never leaked before payment.
+ */
+export interface HeadshotFullResDTO {
+  id: string;
+  styleVariant: string | null;
+  fullUrl: string;
+}
+
+/**
  * Result of `HeadshotService.generateSet`. Carries the (client-safe) job plus
  * the watermarked preview DTOs. Contains no full-res keys/URLs.
  */

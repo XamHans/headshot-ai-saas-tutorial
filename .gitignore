@@ -13,6 +13,9 @@
 /playwright-report/
 /blob-report/
 /playwright/.cache/
+# Stripe webhook forwarder artifacts (spawned by e2e globalSetup)
+/e2e/.stripe-listen.pid
+/e2e/.stripe-listen.log
 
 # Next.js
 /.next/

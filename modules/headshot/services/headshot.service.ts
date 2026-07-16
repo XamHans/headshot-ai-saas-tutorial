@@ -12,6 +12,7 @@ import { getHeadshotStyle, HEADSHOT_VARIANT_COUNT, isValidStyleId } from '../sty
 import type {
   CreateJobInput,
   GenerateSetResult,
+  HeadshotFullResDTO,
   HeadshotJob,
   RecordConsentResult,
   RequestMagicLinkResult,
@@ -21,6 +22,13 @@ import * as generator from './headshot-generator';
 
 /** Per-Gemini-call hard timeout. Two attempts × 25s ≈ 50s worst case. */
 const GENERATION_TIMEOUT_MS = 25_000;
+
+/**
+ * Expiry (seconds) for the post-unlock full-res signed URLs. Deliberately
+ * short — minutes, not the R2 client's 3600s default — so a leaked URL is
+ * useless almost immediately.
+ */
+const FULL_RES_URL_EXPIRY_SECONDS = 300;
 
 /** Race a promise against a timeout; a timeout resolves to a Result error. */
 async function withTimeout<T>(promise: Promise<Result<T>>, ms: number): Promise<Result<T>> {
@@ -425,6 +433,139 @@ export class HeadshotService {
         error: {
           code: 'GENERATION_FAILED',
           message: "We couldn't finish preparing your headshots — please try again.",
+        },
+      };
+    }
+  }
+
+  /**
+   * Atomically unlock a job once its one-time payment succeeds. Called from the
+   * Stripe webhook, which Stripe can redeliver (and can deliver concurrently
+   * with a redelivery). Idempotency is enforced by a single conditional UPDATE
+   * that only matches a still-locked row:
+   *
+   *   UPDATE headshot_jobs SET unlocked = true, payment_id = $1
+   *   WHERE id = $2 AND unlocked = false
+   *
+   * An empty `returning()` means the row was already unlocked — a correct
+   * no-op, NOT an error (`flipped: false`). A missing job is `JOB_NOT_FOUND`.
+   */
+  async markUnlocked(
+    jobId: string,
+    paymentId: string,
+  ): Promise<Result<{ jobId: string; flipped: boolean }>> {
+    this.logger.info('Marking job unlocked', {
+      operation: 'markUnlocked',
+      jobId,
+      paymentId,
+    });
+
+    try {
+      const flipped = await this.ctx.db
+        .update(headshotJobs)
+        .set({ unlocked: true, paymentId, updatedAt: new Date() })
+        .where(and(eq(headshotJobs.id, jobId), eq(headshotJobs.unlocked, false)))
+        .returning({ id: headshotJobs.id });
+
+      if (flipped.length > 0) {
+        return { success: true, data: { jobId, flipped: true } };
+      }
+
+      // No row flipped: either already unlocked (idempotent no-op) or the job
+      // doesn't exist. Distinguish so a genuinely missing job surfaces clearly.
+      const [existing] = await this.ctx.db
+        .select({ id: headshotJobs.id })
+        .from(headshotJobs)
+        .where(eq(headshotJobs.id, jobId))
+        .limit(1);
+
+      if (!existing) {
+        return { success: false, error: { code: 'JOB_NOT_FOUND', message: 'Job not found.' } };
+      }
+
+      this.logger.info('Job already unlocked — no-op', {
+        operation: 'markUnlocked',
+        jobId,
+      });
+      return { success: true, data: { jobId, flipped: false } };
+    } catch (error) {
+      this.logger.error('Failed to mark job unlocked', {
+        error: error instanceof Error ? error : new Error(String(error)),
+        operation: 'markUnlocked',
+        jobId,
+        paymentId,
+      });
+      return {
+        success: false,
+        error: { code: 'DATABASE_ERROR', message: 'Failed to unlock job', cause: error },
+      };
+    }
+  }
+
+  /**
+   * Post-unlock: issue short-lived signed URLs to the CLEAN full-res images.
+   *
+   * Ownership/unlock guards (mirrors `loadGeneratableJob` — no existence leak):
+   *   - missing job OR not owned → `JOB_NOT_FOUND`
+   *   - owned but not unlocked   → `FORBIDDEN`
+   *
+   * Never issues a full-res URL for an un-unlocked or non-owned job. Each URL
+   * carries a short expiry (`FULL_RES_URL_EXPIRY_SECONDS`), not the R2 default.
+   */
+  async getFullResUrls(jobId: string, userId: string): Promise<Result<HeadshotFullResDTO[]>> {
+    this.logger.info('Issuing full-res URLs', {
+      operation: 'getFullResUrls',
+      jobId,
+      userId,
+    });
+
+    try {
+      const [job] = await this.ctx.db
+        .select()
+        .from(headshotJobs)
+        .where(eq(headshotJobs.id, jobId))
+        .limit(1);
+
+      if (!job || job.userId !== userId) {
+        return { success: false, error: { code: 'JOB_NOT_FOUND', message: 'Job not found.' } };
+      }
+
+      if (job.unlocked !== true) {
+        return {
+          success: false,
+          error: {
+            code: 'FORBIDDEN',
+            message: 'Unlock this job to download full-resolution images.',
+          },
+        };
+      }
+
+      const images = await this.ctx.db
+        .select()
+        .from(headshotImages)
+        .where(eq(headshotImages.jobId, jobId));
+
+      const dtos: HeadshotFullResDTO[] = [];
+      for (const image of images) {
+        if (!image.fullKey) continue;
+        const fullUrl = await r2Storage.getSignedUrl(image.fullKey, FULL_RES_URL_EXPIRY_SECONDS);
+        dtos.push({ id: image.id, styleVariant: image.styleVariant, fullUrl });
+      }
+
+      return { success: true, data: dtos };
+    } catch (error) {
+      this.logger.error('Failed to issue full-res URLs', {
+        error: error instanceof Error ? error : new Error(String(error)),
+        operation: 'getFullResUrls',
+        jobId,
+        userId,
+      });
+      return {
+        success: false,
+        error: {
+          code: 'EXTERNAL_SERVICE_ERROR',
+          message: 'Failed to prepare your downloads — please try again.',
+          cause: error,
         },
       };
     }

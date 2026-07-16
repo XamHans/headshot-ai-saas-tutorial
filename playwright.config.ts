@@ -46,6 +46,12 @@ export default defineConfig({
   workers: process.env.CI ? 1 : undefined,
   reporter: process.env.CI ? [['github'], ['html', { open: 'never' }]] : 'html',
 
+  // Spawn `stripe listen` for real webhook delivery during the run (used by the
+  // headshot unlock spec). globalSetup also pins STRIPE_WEBHOOK_SECRET into the
+  // env BEFORE the dev server boots (via webServer.env below).
+  globalSetup: './e2e/stripe-webhook.global.ts',
+  globalTeardown: './e2e/stripe-webhook.teardown.ts',
+
   use: {
     baseURL,
     trace: 'on-first-retry',
