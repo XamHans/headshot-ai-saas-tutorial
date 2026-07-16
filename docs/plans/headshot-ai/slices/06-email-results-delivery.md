@@ -27,13 +27,13 @@ End-to-end behaviour:
 
 ## Prerequisites
 
-- [ ] **Resend (transactional email)** — shared with slice 01.
+- [x] **Resend (transactional email)** — shared with slice 01.
   - Required input: `RESEND_API_KEY`, `RESEND_FROM_EMAIL`.
   - Verify present: `emailService.sendEmail(...)` delivers to a test inbox.
 
 ## Verification contract (behaviour, in Gherkin)
 
-- [ ] **Scenario: unlocking emails a results link**
+- [x] **Scenario: unlocking emails a results link**
   ```gherkin
   Given a user completes the $5 unlock for their job
   When the unlock is confirmed
@@ -41,7 +41,7 @@ End-to-end behaviour:
   And following the link (while signed in) reaches their downloadable full-resolution images
   ```
 
-- [ ] **Scenario: results email is sent once**
+- [x] **Scenario: results email is sent once**
   ```gherkin
   Given the unlock webhook for a job has already sent the results email
   When the same unlock event is processed again

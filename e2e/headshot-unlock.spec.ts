@@ -200,4 +200,51 @@ test.describe('headshot unlock ($5 → clean full-res)', () => {
       expect(asset.headers()['content-disposition']).toMatch(/^attachment/);
     }
   });
+
+  // Slice 06 — after unlock, the buyer is emailed a link back to
+  // `/headshot?job=<jobId>`. The email-sent-exactly-once + content assertions
+  // (recipient, template, url) live in the Vitest unit test
+  // `modules/headshot/tests/headshot-unlock.service.test.ts`, consistent with
+  // how contract #4 (idempotency) is split above. What IS observable end to
+  // end here is that the exact URL shape the email links to is independently
+  // reachable: a signed-in user opening it as a cold page load (as if clicking
+  // the link from an email in a new tab, not the in-app "View & download"
+  // link) reaches the same downloadable full-res results.
+  test('Scenario: the email results link is reachable as a cold navigation after unlock', async ({
+    page,
+  }) => {
+    const email = uniqueEmail('unlock-email-link');
+    const userId = await onboard(page, email);
+    const jobId = await seedReadyJobWithFullRes(userId);
+
+    const unlockRes = await page.request.post(`/api/headshots/${jobId}/unlock`);
+    expect(unlockRes.ok()).toBeTruthy();
+    const payment = (await unlockRes.json()).data as { stripeCheckoutUrl: string };
+
+    await page.goto(payment.stripeCheckoutUrl);
+    const emailField = page.getByRole('textbox', { name: /email/i });
+    await emailField.waitFor({ state: 'visible', timeout: 30_000 });
+    await emailField.fill(email);
+    await page.getByPlaceholder('1234 1234 1234 1234').fill('4242424242424242');
+    await page.getByPlaceholder('MM / YY').fill('12 / 34');
+    await page.getByPlaceholder('CVC').fill('123');
+    const nameField = page.getByPlaceholder('Full name on card');
+    if (await nameField.isVisible().catch(() => false)) {
+      await nameField.fill('Test Payer');
+    }
+    await expect(emailField).toHaveValue(email);
+    await page.getByTestId('hosted-payment-submit-button').click();
+
+    await page.waitForURL('**/payments/return**', { timeout: 60_000 });
+    await expect(page.getByTestId('unlock-status')).toHaveAttribute('data-unlocked', 'true', {
+      timeout: 60_000,
+    });
+
+    // Cold navigation to the exact URL shape the results email links to —
+    // simulates clicking the emailed link in a new tab rather than clicking
+    // the in-app "View & download" link.
+    await page.goto(`/headshot?job=${jobId}`);
+    await expect(page.getByTestId('headshot-downloads')).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId('headshot-download-link')).toHaveCount(3);
+  });
 });
