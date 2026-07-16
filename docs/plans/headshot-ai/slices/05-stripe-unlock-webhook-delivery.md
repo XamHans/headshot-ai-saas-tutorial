@@ -29,7 +29,7 @@ End-to-end behaviour:
 
 ## Prerequisites
 
-- [ ] **Stripe (one-time Checkout + webhook)** — already used by `modules/payments`.
+- [x] **Stripe (one-time Checkout + webhook)** — already used by `modules/payments`.
   - Required input: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` (and the publishable key the app already
     uses) — from the Stripe dashboard. A $5 one-time price/amount.
   - Verify present: a test-mode Checkout session can be created and the local webhook endpoint receives a
@@ -37,7 +37,7 @@ End-to-end behaviour:
 
 ## Verification contract (behaviour, in Gherkin)
 
-- [ ] **Scenario: paying unlocks clean full-res downloads**
+- [x] **Scenario: paying unlocks clean full-res downloads**
   ```gherkin
   Given a signed-in user viewing their watermarked preview set for a ready job
   When they unlock for $5 and complete Stripe Checkout in test mode
@@ -45,7 +45,7 @@ End-to-end behaviour:
   And they can download all 3 clean, watermark-free, full-resolution images
   ```
 
-- [ ] **Scenario: full-res is unavailable before payment**
+- [x] **Scenario: full-res is unavailable before payment**
   ```gherkin
   Given a ready job that has not been unlocked
   When the user (or any client) requests the full-resolution images
@@ -53,7 +53,7 @@ End-to-end behaviour:
   And only watermarked previews remain accessible
   ```
 
-- [ ] **Scenario: full-res links are short-lived signed URLs**
+- [x] **Scenario: full-res links are short-lived signed URLs**
   ```gherkin
   Given an unlocked job
   When a full-resolution download URL is issued
@@ -61,7 +61,7 @@ End-to-end behaviour:
   And it stops working once expired
   ```
 
-- [ ] **Scenario: webhook unlock is idempotent**
+- [x] **Scenario: webhook unlock is idempotent**
   ```gherkin
   Given a completed Checkout whose webhook has already unlocked the job
   When the same checkout.session.completed event is delivered again
@@ -69,7 +69,7 @@ End-to-end behaviour:
   And no duplicate payment or unlock side effects occur
   ```
 
-- [ ] **Scenario: a user cannot unlock or download another user's job**
+- [x] **Scenario: a user cannot unlock or download another user's job**
   ```gherkin
   Given a job belonging to another user
   When the current user attempts to unlock it or fetch its full-res images
@@ -82,13 +82,18 @@ End-to-end behaviour:
    thin unlock action on the headshots route/hook that calls it and redirects to the returned Checkout URL.
 2. Extend the payments **webhook** handler's `checkout.session.completed` case (or add a headshots-side
    handler it calls) to read `metadata.jobId` and call `headshotService.markUnlocked(jobId, paymentId)`.
-   Make `markUnlocked` **idempotent** (no-op if already unlocked) — red-first on the double-delivery
-   scenario.
+   `markUnlocked` must do the flip as a **single atomic conditional UPDATE**
+   (`UPDATE headshot_jobs SET unlocked = true, payment_id = $1 WHERE id = $2 AND unlocked = false`) — not
+   a read-then-check-then-write — since Stripe can redeliver the same webhook concurrently and a
+   check-then-act pattern races. Red-first on the double-delivery scenario.
 3. `headshotService.getFullResUrls(jobId, userId)`: return `Result` of short-lived
    `r2Storage.getSignedUrl(fullKey, <short expiry>)` **only** when the job is owned by the user **and**
    `unlocked === true`; otherwise a denied `Result`. Pin the ownership + unlocked checks in unit tests.
 4. Invariant tests: **no full-res URL is ever issued for an un-unlocked job**, and signed URLs carry a
    short expiry.
+5. On `/payments/return`, don't assume the webhook has already landed by the time the user is redirected
+   back — poll the job's `unlocked` status (short interval, TanStack Query `refetchInterval`) until it
+   flips, rather than showing a static "processing" message with no reconciliation.
 
 ## Blocked by
 

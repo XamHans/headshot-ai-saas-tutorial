@@ -1,9 +1,11 @@
-import { CheckCircle2, Clock, XCircle } from 'lucide-react';
+import { CheckCircle2, Clock } from 'lucide-react';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
+import { Suspense } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { getCurrentUser } from '@/lib/auth';
+import { PaymentReturnStatus } from './payment-return-status';
 
 export default async function PaymentReturnPage() {
   const user = await getCurrentUser();
@@ -25,6 +27,11 @@ export default async function PaymentReturnPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {/* Headshot-unlock reconciliation: polls until the webhook lands. */}
+          <Suspense fallback={null}>
+            <PaymentReturnStatus />
+          </Suspense>
+
           <div className="bg-muted/50 rounded-lg p-4 space-y-2">
             <h3 className="font-semibold text-sm">What happens next?</h3>
             <ul className="text-sm text-muted-foreground space-y-1">

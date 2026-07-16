@@ -59,13 +59,13 @@ export function HeadshotFlow() {
       <WizardProgress steps={WIZARD_STEPS} currentIndex={currentIndex} />
 
       {/* Step 3: results */}
-      {previews ? (
+      {previews && job ? (
         <Card className="w-full">
           <CardHeader>
             <CardTitle>Your headshot previews</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
-            <HeadshotResults previews={previews} />
+            <HeadshotResults job={job} previews={previews} />
             <Button
               type="button"
               variant="outline"
