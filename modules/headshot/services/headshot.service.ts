@@ -3,6 +3,7 @@ import { isDisposableEmail } from '@/lib/auth/disposable-domains';
 import { compositeWatermark } from '@/lib/media/watermark';
 import type { Result } from '@/lib/result';
 import { getServiceContext, type ServiceContext } from '@/lib/services';
+import { emailService } from '@/lib/services/email';
 import { r2Storage } from '@/lib/storage/r2-client';
 import { type FaceGateResult, runFaceGate } from '@/lib/vision/face-detection';
 import { user } from '@/modules/users/schema';
@@ -469,9 +470,10 @@ export class HeadshotService {
         .update(headshotJobs)
         .set({ unlocked: true, paymentId, updatedAt: new Date() })
         .where(and(eq(headshotJobs.id, jobId), eq(headshotJobs.unlocked, false)))
-        .returning({ id: headshotJobs.id });
+        .returning({ id: headshotJobs.id, userId: headshotJobs.userId });
 
       if (flipped.length > 0) {
+        await this.sendResultsEmail(jobId, flipped[0].userId);
         return { success: true, data: { jobId, flipped: true } };
       }
 
@@ -741,6 +743,57 @@ export class HeadshotService {
       .where(and(eq(user.id, userId), lt(user.headshotFreeGenerationCount, FREE_GENERATION_LIMIT)))
       .returning({ id: user.id });
     return claimed.length > 0;
+  }
+
+  /**
+   * Best-effort send of the "your headshots are ready" results email after a
+   * successful unlock flip. The job is already unlocked in the DB by the time
+   * this runs — that's what matters for the paying customer — so any failure
+   * here (missing user, Resend error, etc.) is logged and swallowed, never
+   * surfaced to the caller. Called exactly once per unlock, from the
+   * `flipped: true` branch of `markUnlocked` only.
+   */
+  private async sendResultsEmail(jobId: string, userId: string): Promise<void> {
+    try {
+      const [buyer] = await this.ctx.db
+        .select({ email: user.email })
+        .from(user)
+        .where(eq(user.id, userId))
+        .limit(1);
+
+      if (!buyer) {
+        this.logger.warn('Could not find buyer to send results email', {
+          operation: 'sendResultsEmail',
+          jobId,
+          userId,
+        });
+        return;
+      }
+
+      const resultsUrl = `${process.env.NEXT_PUBLIC_APP_URL}/headshot?job=${jobId}`;
+      const result = await emailService.sendEmail({
+        to: buyer.email,
+        subject: 'Your headshots are ready',
+        templateName: 'headshot-results',
+        templateProps: { url: resultsUrl },
+      });
+
+      if (!result.success) {
+        this.logger.warn('Failed to send results email', {
+          operation: 'sendResultsEmail',
+          jobId,
+          userId,
+          error: result.error,
+        });
+      }
+    } catch (error) {
+      this.logger.warn('Failed to send results email', {
+        error: error instanceof Error ? error : new Error(String(error)),
+        operation: 'sendResultsEmail',
+        jobId,
+        userId,
+      });
+    }
   }
 
   /** Flip a job to `failed` (best-effort; swallow secondary errors). */

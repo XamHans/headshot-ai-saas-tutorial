@@ -2,7 +2,9 @@ import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createLogger } from '@/lib/logger';
 import type { ServiceContext } from '@/lib/services/context';
+import { emailService } from '@/lib/services/email';
 import { r2Storage } from '@/lib/storage/r2-client';
+import { user } from '@/modules/users/schema';
 import { getTestDb } from '@/tests/utils/test-database';
 import { headshotImages, headshotJobs } from '../schema';
 import type { HeadshotService } from '../services/headshot.service';
@@ -18,9 +20,11 @@ describe('HeadshotService unlock + full-res', () => {
   let service: HeadshotService;
   let db: ServiceContext['db'];
   let signedUrlSpy: ReturnType<typeof vi.spyOn>;
+  let sendEmailSpy: ReturnType<typeof vi.spyOn>;
 
   const ownerId = 'unlock-owner-id';
   const otherId = 'unlock-other-id';
+  const ownerEmail = 'unlock-owner@example.com';
 
   beforeEach(() => {
     db = getTestDb();
@@ -29,15 +33,23 @@ describe('HeadshotService unlock + full-res', () => {
     signedUrlSpy = vi
       .spyOn(r2Storage, 'getSignedUrl')
       .mockImplementation(async (key: string) => `https://signed.test/${key}?X-Amz-Expires=300`);
+    sendEmailSpy = vi
+      .spyOn(emailService, 'sendEmail')
+      .mockResolvedValue({ success: true, data: { id: 'test-email-id' } });
   });
 
   afterEach(async () => {
     vi.restoreAllMocks();
     await db.delete(headshotImages).where(eq(headshotImages.jobId, 'unlock-job'));
     await db.delete(headshotJobs).where(eq(headshotJobs.id, 'unlock-job'));
+    await db.delete(user).where(eq(user.id, ownerId));
   });
 
   async function seedReadyJob() {
+    await db
+      .insert(user)
+      .values({ id: ownerId, email: ownerEmail, emailVerified: true })
+      .onConflictDoNothing();
     await db.insert(headshotJobs).values({
       id: 'unlock-job',
       userId: ownerId,
@@ -118,6 +130,44 @@ describe('HeadshotService unlock + full-res', () => {
       const result = await service.markUnlocked('no-such-job', 'pay-x');
       expect(result.success).toBe(false);
       if (!result.success) expect(result.error.code).toBe('JOB_NOT_FOUND');
+    });
+
+    it('sends the buyer a results email exactly once on the flip; redelivery sends no second email', async () => {
+      await seedReadyJob();
+
+      const first = await service.markUnlocked('unlock-job', 'pay-123');
+      expect(first.success).toBe(true);
+      if (first.success) expect(first.data.flipped).toBe(true);
+
+      expect(sendEmailSpy).toHaveBeenCalledTimes(1);
+      const [call] = sendEmailSpy.mock.calls;
+      expect(call[0]).toMatchObject({
+        to: ownerEmail,
+        templateName: 'headshot-results',
+      });
+      expect(call[0].templateProps?.url).toContain('/headshot?job=unlock-job');
+
+      // Redelivery of the same webhook: idempotent no-op, no second email.
+      const second = await service.markUnlocked('unlock-job', 'pay-DIFFERENT');
+      expect(second.success).toBe(true);
+      if (second.success) expect(second.data.flipped).toBe(false);
+
+      expect(sendEmailSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('still returns success and flipped:true when the results email fails to send', async () => {
+      await seedReadyJob();
+      sendEmailSpy.mockResolvedValue({
+        success: false,
+        error: { code: 'EXTERNAL_SERVICE_ERROR', message: 'Resend is down' },
+      });
+
+      const result = await service.markUnlocked('unlock-job', 'pay-123');
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.flipped).toBe(true);
+        expect(result.data.jobId).toBe('unlock-job');
+      }
     });
   });
 
