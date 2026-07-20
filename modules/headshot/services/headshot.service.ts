@@ -1,4 +1,4 @@
-import { and, eq, lt, sql } from 'drizzle-orm';
+import { and, eq, inArray, lt, sql } from 'drizzle-orm';
 import { isDisposableEmail } from '@/lib/auth/disposable-domains';
 import { compositeWatermark } from '@/lib/media/watermark';
 import type { Result } from '@/lib/result';
@@ -11,7 +11,9 @@ import { headshotImages, headshotJobs } from '../schema';
 import { createJobInputSchema } from '../schemas';
 import { getHeadshotStyle, HEADSHOT_VARIANT_COUNT, isValidStyleId } from '../styles';
 import type {
+  CleanupResult,
   CreateJobInput,
+  DeleteUserDataResult,
   GenerateSetResult,
   HeadshotFullResDTO,
   HeadshotJob,
@@ -33,6 +35,15 @@ export const FREE_GENERATION_LIMIT = 3;
  * useless almost immediately.
  */
 const FULL_RES_URL_EXPIRY_SECONDS = 300;
+
+/**
+ * Retention window: source photos and un-purchased outputs of jobs older than
+ * this are swept by the automatic cleanup. Purchased (unlocked) jobs are always
+ * out of scope for the automatic sweep — they are only removed by an explicit
+ * `deleteUserData` (account/"delete my data").
+ */
+const RETENTION_DAYS = 30;
+const RETENTION_MS = RETENTION_DAYS * 24 * 60 * 60 * 1000;
 
 /** Race a promise against a timeout; a timeout resolves to a Result error. */
 async function withTimeout<T>(promise: Promise<Result<T>>, ms: number): Promise<Result<T>> {
@@ -638,6 +649,163 @@ export class HeadshotService {
         },
       };
     }
+  }
+
+  /**
+   * Automatic 30-day retention sweep (invoked by the scheduled cleanup route).
+   *
+   * Selects jobs older than `RETENTION_DAYS` AND `unlocked = false` — the single
+   * most dangerous mistake here would be selecting a purchased job, so the
+   * WHERE clause pins `unlocked = false` and this method NEVER deletes a
+   * full-res image of an unlocked job. For each expired, un-purchased job it:
+   *   - deletes the source photo + every preview/full output from R2, and
+   *   - removes the image rows and clears the job's `sourceImageKey`
+   * so the stored keys no longer resolve. The job row itself is retained
+   * (anonymized of storage) as a lightweight record; only `deleteUserData`
+   * removes job rows entirely.
+   *
+   * Best-effort on the R2 boundary: a delete failure for one key is logged and
+   * swallowed so one bad object cannot block the rest of the sweep.
+   */
+  async cleanupExpired(): Promise<Result<CleanupResult>> {
+    const cutoff = new Date(Date.now() - RETENTION_MS);
+    this.logger.info('Running retention cleanup', {
+      operation: 'cleanupExpired',
+      cutoff: cutoff.toISOString(),
+    });
+
+    try {
+      // Expired AND not purchased. `unlocked = false` is load-bearing: an
+      // unlocked job is never selected, so its full-res images always survive.
+      const expired = await this.ctx.db
+        .select()
+        .from(headshotJobs)
+        .where(and(lt(headshotJobs.createdAt, cutoff), eq(headshotJobs.unlocked, false)));
+
+      let jobsSwept = 0;
+      let keysDeleted = 0;
+
+      for (const job of expired) {
+        const images = await this.ctx.db
+          .select()
+          .from(headshotImages)
+          .where(eq(headshotImages.jobId, job.id));
+
+        const keys = [
+          job.sourceImageKey,
+          ...images.flatMap((img) => [img.previewKey, img.fullKey]),
+        ].filter((k): k is string => Boolean(k));
+
+        keysDeleted += await this.deleteKeys(keys);
+
+        // Drop the image rows and clear the source key so nothing resolves.
+        await this.ctx.db.delete(headshotImages).where(eq(headshotImages.jobId, job.id));
+        await this.ctx.db
+          .update(headshotJobs)
+          .set({ sourceImageKey: '', updatedAt: new Date() })
+          .where(eq(headshotJobs.id, job.id));
+
+        jobsSwept += 1;
+      }
+
+      this.logger.info('Retention cleanup complete', {
+        operation: 'cleanupExpired',
+        jobsSwept,
+        keysDeleted,
+      });
+
+      return { success: true, data: { jobsSwept, keysDeleted } };
+    } catch (error) {
+      this.logger.error('Retention cleanup failed', {
+        error: error instanceof Error ? error : new Error(String(error)),
+        operation: 'cleanupExpired',
+      });
+      return {
+        success: false,
+        error: { code: 'DATABASE_ERROR', message: 'Retention cleanup failed', cause: error },
+      };
+    }
+  }
+
+  /**
+   * User-initiated "delete my data": promptly removes ALL of the acting user's
+   * headshot data — source photos and every generated image (preview + full) —
+   * from R2, then removes their image + job records. Strictly scoped to
+   * `userId`: only jobs where `headshotJobs.userId = userId` are ever touched,
+   * so another user's data is never affected. Unlike the automatic sweep, this
+   * intentionally removes purchased images too — the user asked for it.
+   */
+  async deleteUserData(userId: string): Promise<Result<DeleteUserDataResult>> {
+    this.logger.info('Deleting user data', { operation: 'deleteUserData', userId });
+
+    try {
+      const jobs = await this.ctx.db
+        .select()
+        .from(headshotJobs)
+        .where(eq(headshotJobs.userId, userId));
+
+      const jobIds = jobs.map((j) => j.id);
+      const images =
+        jobIds.length > 0
+          ? await this.ctx.db
+              .select()
+              .from(headshotImages)
+              .where(inArray(headshotImages.jobId, jobIds))
+          : [];
+
+      const keys = [
+        ...jobs.map((j) => j.sourceImageKey),
+        ...images.flatMap((img) => [img.previewKey, img.fullKey]),
+      ].filter((k): k is string => Boolean(k));
+
+      const keysDeleted = await this.deleteKeys(keys);
+
+      if (jobIds.length > 0) {
+        await this.ctx.db.delete(headshotImages).where(inArray(headshotImages.jobId, jobIds));
+        await this.ctx.db.delete(headshotJobs).where(eq(headshotJobs.userId, userId));
+      }
+
+      this.logger.info('User data deleted', {
+        operation: 'deleteUserData',
+        userId,
+        jobsDeleted: jobIds.length,
+        keysDeleted,
+      });
+
+      return { success: true, data: { jobsDeleted: jobIds.length, keysDeleted } };
+    } catch (error) {
+      this.logger.error('Failed to delete user data', {
+        error: error instanceof Error ? error : new Error(String(error)),
+        operation: 'deleteUserData',
+        userId,
+      });
+      return {
+        success: false,
+        error: { code: 'DATABASE_ERROR', message: 'Failed to delete your data', cause: error },
+      };
+    }
+  }
+
+  /**
+   * Best-effort R2 deletion of a set of keys. A single failed delete is logged
+   * and swallowed so it cannot abort a whole sweep/deletion. Returns the count
+   * of keys successfully deleted.
+   */
+  private async deleteKeys(keys: string[]): Promise<number> {
+    let deleted = 0;
+    for (const key of keys) {
+      try {
+        await r2Storage.deleteFile(key);
+        deleted += 1;
+      } catch (error) {
+        this.logger.warn('Failed to delete R2 object during retention', {
+          error: error instanceof Error ? error : new Error(String(error)),
+          operation: 'deleteKeys',
+          key,
+        });
+      }
+    }
+    return deleted;
   }
 
   /**
