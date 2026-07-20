@@ -8,21 +8,8 @@ const nextConfig = {
       },
     ],
   },
-  webpack: (config, { isServer }) => {
-    if (!isServer) {
-      // Exclude server-only packages from client bundle
-      config.resolve.fallback = {
-        ...config.resolve.fallback,
-        net: false,
-        tls: false,
-        crypto: false,
-        fs: false,
-        path: false,
-        os: false,
-      };
-    }
-    return config;
-  },
+  turbopack: {},
+  serverExternalPackages: ['pino', 'thread-stream'],
 };
 
 export default nextConfig;

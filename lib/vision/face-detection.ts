@@ -1,7 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 // picojs ships a single CommonJS file that assigns to `module.exports`. No types.
-// @ts-expect-error - no type declarations for picojs
 import pico from 'picojs';
 
 /**
@@ -43,17 +42,23 @@ export interface FaceGateResult {
   height: number;
 }
 
-let cachedCascade:
-  | ((r: number, c: number, s: number, pixels: Uint8Array, ldim: number) => number)
-  | null = null;
+type CascadeClassifier = (
+  r: number,
+  c: number,
+  s: number,
+  pixels: Uint8Array,
+  ldim: number,
+) => number;
 
-function getCascade() {
-  if (!cachedCascade) {
-    const cascadePath = join(process.cwd(), 'lib/vision/models/facefinder');
-    const bytes = new Int8Array(readFileSync(cascadePath));
-    cachedCascade = pico.unpack_cascade(bytes);
-  }
-  return cachedCascade;
+let cachedCascade: CascadeClassifier | null = null;
+
+function getCascade(): CascadeClassifier {
+  if (cachedCascade) return cachedCascade;
+  const cascadePath = join(process.cwd(), 'lib/vision/models/facefinder');
+  const bytes = new Int8Array(readFileSync(cascadePath));
+  const cascade: CascadeClassifier = pico.unpack_cascade(bytes);
+  cachedCascade = cascade;
+  return cascade;
 }
 
 interface GrayImage {

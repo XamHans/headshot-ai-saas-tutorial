@@ -1,6 +1,5 @@
 import { resolve } from 'path';
 import { defineConfig } from 'vitest/config';
-// @ts-expect-error
 
 export default defineConfig({
   plugins: [],

@@ -3,7 +3,7 @@ import { boolean, integer, pgSchema, pgTable, text, timestamp } from 'drizzle-or
 // Use 'test' schema for test environment, 'public' for production
 const isTest = process.env.NODE_ENV === 'test';
 const testSchema = pgSchema('test');
-const tableHelper = isTest ? testSchema.table : pgTable;
+const tableHelper = (isTest ? testSchema.table : pgTable) as typeof pgTable;
 
 // Users table
 // Better Auth tables
