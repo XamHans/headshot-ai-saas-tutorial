@@ -17,7 +17,7 @@ export function LoginForm({ className, ...props }: React.ComponentProps<'div'>) 
       await signIn.social(
         {
           provider: 'google',
-          callbackURL: '/playground/generate-text',
+          callbackURL: '/headshot',
         },
         {
           onRequest: () => setIsSigningIn(true),
@@ -26,7 +26,7 @@ export function LoginForm({ className, ...props }: React.ComponentProps<'div'>) 
             setIsSigningIn(false);
           },
           onSuccess: () => {
-            router.push('/playground/generate-text');
+            router.push('/headshot');
             setIsSigningIn(false);
           },
         },

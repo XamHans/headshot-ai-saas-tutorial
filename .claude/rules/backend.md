@@ -7,7 +7,7 @@ paths:
 
 # Backend rules
 
-Reference: `modules/posts` (service + tests) and `app/api/posts/route.ts`.
+Reference: `modules/headshot` (service + tests) and `app/api/headshots/[id]/route.ts`.
 
 ## Result, not exceptions
 

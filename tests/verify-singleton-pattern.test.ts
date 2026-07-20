@@ -2,13 +2,6 @@ import { describe, expect, it } from 'vitest';
 
 // Test that we can import singletons
 describe('Singleton Pattern Verification', () => {
-  it('should import postService singleton', async () => {
-    const { postService } = await import('@/modules/posts/services/post.service');
-    expect(postService).toBeDefined();
-    expect(typeof postService.getPosts).toBe('function');
-    expect(typeof postService.createPost).toBe('function');
-  });
-
   it('should import userService singleton', async () => {
     const { userService } = await import('@/modules/users/services/user.service');
     expect(userService).toBeDefined();
@@ -30,12 +23,6 @@ describe('Singleton Pattern Verification', () => {
 
 // Test that factory functions still work
 describe('Factory Pattern Verification', () => {
-  it('should have createPostService factory', async () => {
-    const { createPostService } = await import('@/modules/posts/services/post.service');
-    expect(createPostService).toBeDefined();
-    expect(typeof createPostService).toBe('function');
-  });
-
   it('should have createUserService factory', async () => {
     const { createUserService } = await import('@/modules/users/services/user.service');
     expect(createUserService).toBeDefined();

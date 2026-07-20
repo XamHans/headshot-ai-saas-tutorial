@@ -7,7 +7,7 @@ paths:
 
 # Frontend rules
 
-Reference: `app/(main)/posts/hooks/use-posts.ts` and `app/(main)/posts/components/`.
+Reference: `app/(headshot)/headshot/hooks/` and `app/(headshot)/headshot/components/`.
 
 ## Data fetching — TanStack Query only
 
@@ -17,7 +17,7 @@ Reference: `app/(main)/posts/hooks/use-posts.ts` and `app/(main)/posts/component
 
 ## Queries and mutations
 
-- **Queries**: stable `queryKey` — list key `['posts', filters]`, detail key `['posts', id]`. Query defaults live in `lib/query/client.ts`.
+- **Queries**: stable `queryKey` — list key `['headshots', filters]`, detail key `['headshots', id]`. Query defaults live in `lib/query/client.ts`.
 - **Mutations**: `invalidateQueries` the affected keys in `onSuccess`.
 - **Loading/error come from the hook** (`isPending`, `isError`, `error`) — drive skeletons and disabled states off them, not local `useState` flags.
 

@@ -123,7 +123,7 @@ export async function cleanTestDatabase() {
   try {
     // Truncate all tables in test schema with CASCADE to handle foreign keys
     await testClient`SET search_path TO test`;
-    await testClient`TRUNCATE TABLE headshot_images, headshot_jobs, headshot_rate_limits, specs, posts, "user", "session", "account", verification CASCADE`;
+    await testClient`TRUNCATE TABLE headshot_images, headshot_jobs, headshot_rate_limits, specs, "user", "session", "account", verification CASCADE`;
     await testClient`SET search_path TO public`;
   } catch (error) {
     console.error('Failed to clean test database:', error);
