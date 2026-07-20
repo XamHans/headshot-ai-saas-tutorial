@@ -12,7 +12,7 @@ Dependency shape: `01 → 02 → 03 → {04, 05, 07}`, then `05 → 06`. After 0
 - [x] 04 — Abuse controls: 3-free-generation cap + IP/device rate limit   (opus/medium)
 - [x] 05 — $5 unlock via Stripe + webhook markUnlocked + full-res signed-URL delivery   (opus/medium)
 - [x] 06 — Email delivery of results link   (sonnet/low)
-- [ ] 07 — Retention: 30-day cleanup job + "delete my data"   (opus/medium)   👈 NEXT
+- [x] 07 — Retention: 30-day cleanup job + "delete my data"   (opus/medium)
 
 Mark a slice `[x]` only once `/implement` has fully completed and merged it. The first `[ ]` slice among
 01–07 is NEXT. **The core plan is complete once 01–07 are all `[x]` — slice 08 below is optional.**
