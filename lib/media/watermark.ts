@@ -13,29 +13,112 @@ const PREVIEW_SCALE = 0.5;
 const WATERMARK_OPACITY = 0.3;
 
 /**
+ * Stroke polylines for each letter of the wordmark, drawn on a 60×100 grid
+ * (x right, y down). Rendered as SVG paths — NOT `<text>` — because SVG text
+ * needs fontconfig + system fonts, which serverless runtimes (Vercel Lambda)
+ * don't ship; there `<text>` silently renders as nothing.
+ */
+const LETTER_STROKES: Record<string, number[][][]> = {
+  P: [
+    [
+      [0, 100],
+      [0, 0],
+      [55, 0],
+      [55, 50],
+      [0, 50],
+    ],
+  ],
+  R: [
+    [
+      [0, 100],
+      [0, 0],
+      [55, 0],
+      [55, 50],
+      [0, 50],
+    ],
+    [
+      [35, 50],
+      [60, 100],
+    ],
+  ],
+  E: [
+    [
+      [60, 0],
+      [0, 0],
+      [0, 100],
+      [60, 100],
+    ],
+    [
+      [0, 50],
+      [45, 50],
+    ],
+  ],
+  V: [
+    [
+      [0, 0],
+      [30, 100],
+      [60, 0],
+    ],
+  ],
+  I: [
+    [
+      [30, 0],
+      [30, 100],
+    ],
+  ],
+  W: [
+    [
+      [0, 0],
+      [15, 100],
+      [30, 35],
+      [45, 100],
+      [60, 0],
+    ],
+  ],
+};
+
+/** Horizontal advance per letter on the 60×100 grid (letter width + gap). */
+const LETTER_ADVANCE = 85;
+
+/** One "PREVIEW" wordmark as a single path `d` on the 60×100-per-letter grid. */
+const WORDMARK_D = 'PREVIEW'
+  .split('')
+  .flatMap((letter, i) =>
+    LETTER_STROKES[letter].map(
+      (stroke) => `M${stroke.map(([px, py]) => `${px + i * LETTER_ADVANCE},${py}`).join('L')}`,
+    ),
+  )
+  .join('');
+
+/** Wordmark width in grid units (letters advance 85, last letter is 60 wide). */
+const WORDMARK_WIDTH = ('PREVIEW'.length - 1) * LETTER_ADVANCE + 60;
+
+/**
  * Build a tiled, diagonal "PREVIEW" wordmark SVG sized to the given image.
- * The text is repeated across a rotated grid so it can't be trivially cropped
- * out, and rendered at low opacity so the preview stays legible.
+ * The wordmark is repeated across a rotated grid so it can't be trivially
+ * cropped out, and rendered at low opacity so the preview stays legible.
  */
 function buildWatermarkSvg(width: number, height: number): Buffer {
-  // Scale the font to the image so the wordmark reads at any size.
+  // Scale the wordmark to the image so it reads at any size ("fontSize" is
+  // the letter height in px; the 60×100 grid is scaled down to match).
   const fontSize = Math.max(14, Math.round(Math.min(width, height) * 0.12));
-  const stepX = fontSize * 8;
+  const scale = fontSize / 100;
+  const stepX = Math.ceil(WORDMARK_WIDTH * scale) + fontSize * 2;
   const stepY = fontSize * 4;
 
   // Cover the rotated plane generously so the diagonal tiling fills corners.
-  const texts: string[] = [];
+  const marks: string[] = [];
   for (let y = -height; y < height * 2; y += stepY) {
     for (let x = -width; x < width * 2; x += stepX) {
-      texts.push(
-        `<text x="${x}" y="${y}" font-family="Arial, Helvetica, sans-serif" font-size="${fontSize}" font-weight="bold" fill="#ffffff" fill-opacity="${WATERMARK_OPACITY}">PREVIEW</text>`,
+      marks.push(
+        `<g transform="translate(${x} ${y}) scale(${scale})"><path d="${WORDMARK_D}" fill="none" stroke="#ffffff" stroke-opacity="${WATERMARK_OPACITY}" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/></g>`,
       );
     }
   }
 
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
     <g transform="rotate(-35 ${width / 2} ${height / 2})">
-      ${texts.join('\n')}
+      ${marks.join('\n')}
     </g>
   </svg>`;
 
