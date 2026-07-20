@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { getServiceContext } from '@/lib/services';
 import type { ServiceContext } from '@/lib/services/context';
 import { user } from '../schema';
@@ -29,6 +29,7 @@ export class UserService {
       const [newUser] = await this.ctx.db
         .insert(user)
         .values({
+          id: crypto.randomUUID(),
           email: data.email,
           name: data.name,
           avatar: data.avatar,
@@ -122,8 +123,7 @@ export class UserService {
       const [foundUser] = await this.ctx.db
         .select()
         .from(user)
-        .where(eq(user.provider, provider))
-        .where(eq(user.providerId, providerId));
+        .where(and(eq(user.provider, provider), eq(user.providerId, providerId)));
 
       this.logger.debug(foundUser ? 'User found by provider' : 'User not found by provider', {
         operation: 'getUserByProvider',

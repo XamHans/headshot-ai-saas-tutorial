@@ -19,10 +19,11 @@ export interface ServiceContext {
 }
 
 export interface ErrorContext {
-  error: Error;
+  error?: unknown;
   context?: Record<string, any>;
   requestId?: string;
   userId?: string;
+  [key: string]: any;
 }
 
 export interface Logger {

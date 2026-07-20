@@ -72,7 +72,7 @@ export function HeadshotUploader({ onJobCreated }: HeadshotUploaderProps = {}) {
     e.target.value = '';
   };
 
-  const onDrop = (e: React.DragEvent<HTMLDivElement>) => {
+  const onDrop = (e: React.DragEvent<HTMLButtonElement>) => {
     e.preventDefault();
     const file = e.dataTransfer.files?.[0];
     if (file) handleFile(file);

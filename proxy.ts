@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from 'next/server';
 import { getOrCreateCorrelationId } from '@/lib/api/correlation';
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const correlationId = getOrCreateCorrelationId(request);
 
   const response = NextResponse.next();
