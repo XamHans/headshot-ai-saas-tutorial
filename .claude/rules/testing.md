@@ -10,7 +10,7 @@ paths:
 
 ## Service / unit tests (Vitest)
 
-- Test services against a real test DB: build a `ServiceContext` with `getTestDb()` + `createLogger()`, then `createXService(ctx)`. See `modules/posts/tests/post.service.test.ts`.
+- Test services against a real test DB: build a `ServiceContext` with `getTestDb()` + `createLogger()`, then `createXService(ctx)`. See `modules/headshot/tests/headshot.service.test.ts`.
 - Assert on the `Result` shape: check `result.success`, then narrow before reading `data` or `error.code`.
 - Tests use the `test` Postgres schema when `NODE_ENV=test` (see `modules/*/schema.ts`).
 - Location: `modules/{feature}/tests/`. Run with `pnpm test` (or `pnpm test:integration`).

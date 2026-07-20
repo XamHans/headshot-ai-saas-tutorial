@@ -16,3 +16,79 @@ export interface RequestMagicLinkResult {
 export interface RecordConsentResult {
   biometricConsentAt: string;
 }
+
+import type { headshotJobs } from './schema';
+
+/** A headshot generation job row (DB shape derived from the Drizzle table). */
+export type HeadshotJob = typeof headshotJobs.$inferSelect;
+
+/** Allowed job statuses. */
+export type HeadshotJobStatus = 'pending' | 'generating' | 'ready' | 'failed';
+
+/**
+ * Input to `HeadshotService.createJob`. The route parses multipart/form-data
+ * into this plain, framework-agnostic shape before handing it to the service.
+ */
+export interface CreateJobInput {
+  /** Raw image bytes. */
+  buffer: Buffer;
+  /** Reported MIME type (e.g. `image/jpeg`). Re-validated server-side. */
+  contentType: string;
+  /** Original filename — used for extension validation. */
+  filename: string;
+  /** Byte size (re-validated server-side, never trusted from the client). */
+  size: number;
+}
+
+/** A headshot images row (DB shape). */
+import type { headshotImages } from './schema';
+
+export type HeadshotImage = typeof headshotImages.$inferSelect;
+
+/**
+ * Client-safe preview DTO. Deliberately carries ONLY the watermarked preview
+ * URL — never `fullKey` or any full-resolution reference. This is the single
+ * most important invariant of the generation slice: the clean full-res image
+ * must never leak into any API response before payment.
+ */
+export interface HeadshotPreviewDTO {
+  id: string;
+  styleVariant: string | null;
+  previewUrl: string;
+}
+
+/**
+ * Post-unlock DTO. Carries a short-lived signed URL to the CLEAN, full-res
+ * image. Only ever produced by `getFullResUrls` for an unlocked, owned job —
+ * never leaked before payment.
+ */
+export interface HeadshotFullResDTO {
+  id: string;
+  styleVariant: string | null;
+  fullUrl: string;
+}
+
+/**
+ * Result of `HeadshotService.generateSet`. Carries the (client-safe) job plus
+ * the watermarked preview DTOs. Contains no full-res keys/URLs.
+ */
+export interface GenerateSetResult {
+  job: HeadshotJob;
+  previews: HeadshotPreviewDTO[];
+}
+
+/** Summary of an automatic 30-day retention sweep. */
+export interface CleanupResult {
+  /** Number of expired, un-purchased jobs swept. */
+  jobsSwept: number;
+  /** Number of R2 objects successfully deleted. */
+  keysDeleted: number;
+}
+
+/** Summary of a user-initiated "delete my data" action. */
+export interface DeleteUserDataResult {
+  /** Number of the user's job rows removed. */
+  jobsDeleted: number;
+  /** Number of R2 objects successfully deleted. */
+  keysDeleted: number;
+}

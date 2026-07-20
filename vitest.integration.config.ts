@@ -13,6 +13,10 @@ export default defineConfig({
     include: ['**/tests/**/*.integration.test.ts'],
     testTimeout: 30000, // Longer timeout for integration tests
     hookTimeout: 60000,
+    // All integration files share the single `test` Postgres schema, and setup.ts
+    // truncates every table before each test — parallel files would wipe each
+    // other's rows mid-test.
+    fileParallelism: false,
   },
   resolve: {
     alias: {

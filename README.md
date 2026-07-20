@@ -6,7 +6,6 @@ Production-grade Next.js 15 starter for shipping AI SaaS that stays maintainable
 
 ## Why teams ship with this starter
 - Spec-driven development keeps AI agents aligned and kills rework.
-- Multi-provider AI playgrounds stream results with typed, structured output.
 - Better Auth, Drizzle, and Neon give you secure login, sessions, and migrations on day one.
 - Resend emails, R2 file uploads, Stripe payments, and background jobs are wired for real customer flows.
 - Langfuse, Pino, Umami, and Vitest ensure you monitor, log, and test before launch.
@@ -42,7 +41,7 @@ Get started with Stripe Checkout in minutes:
    ```
 4. Run migrations: `pnpm db:migrate`
 
-The payment slice (`modules/payments`, `app/api/payments`, `app/(main)/payments`) is a complete working reference.
+The payment slice (`modules/payments`, `app/api/payments`, `app/(main)/payments/return`) is a complete working reference.
 
 ## Keep your fork updated
 - Leave `origin` pointing at your fork and add this starter as an `upstream` remote: `git remote add upstream https://github.com/our-org/starter-kit.git`.
@@ -55,4 +54,4 @@ The payment slice (`modules/payments`, `app/api/payments`, `app/(main)/payments`
 - Conventions and architecture: `CLAUDE.md` (stack, commands, the feature-slice map, golden rules).
 - Layer-specific rules: `.claude/rules/` (`backend.md`, `frontend.md`, `testing.md`) — auto-loaded when you edit matching files.
 - Feature workflow: the `/build` and `/implement` skills in `.claude/skills/`.
-- Reference implementations: `modules/posts` and `modules/payments`.
+- Reference implementations: `modules/payments` and `modules/headshot`.

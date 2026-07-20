@@ -5,6 +5,10 @@ why: Better Auth magic-link config + disposable-domain blocklist + biometric-con
 ---
 # 01 — Verified-email onboarding + biometric-consent gate
 
+**TL;DR — Goal:** Build the identity + legal gate — email verification via magic link plus explicit
+biometric consent — that every later slice relies on. **Unlocks:** a visitor can sign up, verify their
+email, and grant consent; only verified + consented users can ever reach upload/generation.
+
 > Source plan: `docs/plans/headshot-ai/plan.md` (§5.1, §6-abuse, §11). Original PRD: `docs/planning/headshot-ai-prd.md`.
 
 ## What to build

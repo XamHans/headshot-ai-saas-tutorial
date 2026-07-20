@@ -20,8 +20,8 @@ Run these and record any hits as findings. A hit is only a *candidate* — read 
    Services must return `Result<T>`. A `throw` in a constructor for a missing dependency is acceptable; a `throw` in business logic is not.
 
 2. **Hand-rolled `NextResponse` in routes** (`blocker`):
-   `grep -rn "NextResponse" app/api 2>/dev/null | grep -v "app/api/ai/chat" | grep -v "app/api/auth/"`
-   Routes must return the service `Result` and let `handleResult` build the response. Exceptions: `app/api/ai/chat/route.ts` (streaming) and the Better Auth catch-all.
+   `grep -rn "NextResponse" app/api 2>/dev/null | grep -v "app/api/auth/"`
+   Routes must return the service `Result` and let `handleResult` build the response. Exception: the Better Auth catch-all.
 
 3. **Imports from deprecated `lib/api/base.ts`** (`blocker`):
    `grep -rn "lib/api/base" --include="*.ts" --include="*.tsx" . 2>/dev/null | grep -v node_modules`
@@ -31,7 +31,7 @@ Run these and record any hits as findings. A hit is only a *candidate* — read 
    Routes should use `parseRequestBody`/`parseSearchParams` from `lib/validation/parse.ts`. The Stripe webhook (raw body) is exempt.
 
 5. **Routes not wrapped in `withAuth`/`withHandler`** (`blocker`):
-   For each `app/api/**/route.ts` (except `app/api/auth/[...all]` and the AI streaming routes), confirm each exported `GET/POST/PUT/DELETE/PATCH` is a `withAuth(...)` or `withHandler(...)` call. Grep the handler exports:
+   For each `app/api/**/route.ts` (except `app/api/auth/[...all]`), confirm each exported `GET/POST/PUT/DELETE/PATCH` is a `withAuth(...)` or `withHandler(...)` call. Grep the handler exports:
    `grep -rn "export const \(GET\|POST\|PUT\|DELETE\|PATCH\)" app/api 2>/dev/null`
    then read any file whose export isn't obviously a `withAuth`/`withHandler` call.
 
@@ -68,7 +68,7 @@ Run and capture pass/fail + first ~40 lines of any failure:
 
 Spawn a `general-purpose` (or `Explore`) subagent with this instruction:
 
-> Read `CLAUDE.md`, `.claude/rules/backend.md`, `.claude/rules/frontend.md`, and the reference slice `modules/posts` (+ `app/api/posts/route.ts`, `app/(main)/posts/hooks/use-posts.ts`). Then review every **non-reference** feature slice (`modules/payments`, and anything newer) plus its API routes and UI hooks. Judge the fuzzy patterns that grep can't: (a) services export **both** a `createXService(ctx)` factory and an `xService` singleton, and never call `getServiceContext()` internally; (b) services take `ServiceContext` and log via `this.ctx.logger.child(...)`; (c) route handlers are genuinely thin (parse → delegate → return); (d) client components have `'use client'`; (e) TanStack hooks use stable query keys and invalidate the right keys on mutation success; (f) UI imports shared types from `modules/{feature}/types` rather than redefining them. Return a concise list of concrete violations as `{ file, severity, issue }` — no prose, no praise. If a slice fully matches the reference, say nothing about it.
+> Read `CLAUDE.md`, `.claude/rules/backend.md`, `.claude/rules/frontend.md`, and the reference slice `modules/headshot` (+ `app/api/headshots/[id]/route.ts`, `app/(headshot)/headshot/hooks/`). Then review every **non-reference** feature slice (`modules/payments`, and anything newer) plus its API routes and UI hooks. Judge the fuzzy patterns that grep can't: (a) services export **both** a `createXService(ctx)` factory and an `xService` singleton, and never call `getServiceContext()` internally; (b) services take `ServiceContext` and log via `this.ctx.logger.child(...)`; (c) route handlers are genuinely thin (parse → delegate → return); (d) client components have `'use client'`; (e) TanStack hooks use stable query keys and invalidate the right keys on mutation success; (f) UI imports shared types from `modules/{feature}/types` rather than redefining them. Return a concise list of concrete violations as `{ file, severity, issue }` — no prose, no praise. If a slice fully matches the reference, say nothing about it.
 
 Merge the subagent's findings into the running list.
 

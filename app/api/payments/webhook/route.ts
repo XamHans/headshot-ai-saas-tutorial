@@ -1,6 +1,7 @@
 import Stripe from 'stripe';
 import { withHandler } from '@/lib/api/handlers';
 import { createLogger } from '@/lib/logger';
+import { headshotService } from '@/modules/headshot/services/headshot.service';
 import { paymentService } from '@/modules/payments/services/payment.service';
 
 type WebhookResult = { status: 'ok' | 'ignored'; reason?: string };
@@ -73,7 +74,12 @@ export const POST = withHandler<WebhookResult>(async (request) => {
         return { success: true, data: { status: 'ignored', reason: 'payment_not_found' } };
       }
 
+      // Pass the resolved `paymentId` (from the session lookup above) so the
+      // status UPDATE targets this row by primary key. Passing only the session
+      // id makes updatePaymentStatus prefer a derived `intentId` in its WHERE,
+      // which the row doesn't yet carry at creation → zero rows matched.
       const updatedPayment = await paymentService.updatePaymentStatus({
+        paymentId: payment.id,
         stripeCheckoutSessionId: session.id,
       });
 
@@ -92,6 +98,35 @@ export const POST = withHandler<WebhookResult>(async (request) => {
         sessionId: session.id,
         status: updatedPayment.status,
       });
+
+      // Headshot unlock: if this checkout carried a `jobId` and the payment is
+      // now paid, atomically flip the linked job to unlocked. `markUnlocked` is
+      // idempotent (single conditional UPDATE), so a Stripe redelivery of this
+      // same event is a safe no-op.
+      const jobId = session.metadata?.jobId;
+      const isPaid =
+        updatedPayment.status === 'succeeded' ||
+        updatedPayment.status === 'paid' ||
+        session.payment_status === 'paid';
+
+      if (jobId && isPaid) {
+        const unlockResult = await headshotService.markUnlocked(jobId, updatedPayment.id);
+        if (!unlockResult.success) {
+          logger.warn('Failed to unlock headshot job from webhook', {
+            operation: 'webhookHandler',
+            jobId,
+            paymentId: updatedPayment.id,
+            code: unlockResult.error.code,
+          });
+        } else {
+          logger.info('Headshot job unlock processed', {
+            operation: 'webhookHandler',
+            jobId,
+            paymentId: updatedPayment.id,
+            flipped: unlockResult.data.flipped,
+          });
+        }
+      }
       break;
     }
 

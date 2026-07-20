@@ -46,6 +46,12 @@ export default defineConfig({
   workers: process.env.CI ? 1 : undefined,
   reporter: process.env.CI ? [['github'], ['html', { open: 'never' }]] : 'html',
 
+  // Spawn `stripe listen` for real webhook delivery during the run (used by the
+  // headshot unlock spec). globalSetup also pins STRIPE_WEBHOOK_SECRET into the
+  // env BEFORE the dev server boots (via webServer.env below).
+  globalSetup: './e2e/stripe-webhook.global.ts',
+  globalTeardown: './e2e/stripe-webhook.teardown.ts',
+
   use: {
     baseURL,
     trace: 'on-first-retry',
@@ -69,5 +75,15 @@ export default defineConfig({
     url: baseURL,
     reuseExistingServer: !process.env.CI,
     timeout: 120 * 1000,
+    // better-auth computes redirect targets (e.g. after magic-link verify) from
+    // BETTER_AUTH_URL, not from the request's own host/port. .env.local pins it
+    // to the manual dev server's port (3000); without this override the e2e
+    // server (3131) would issue redirects to a port nothing is listening on,
+    // and any navigation that follows one (e.g. page.goto) gets ERR_CONNECTION_REFUSED.
+    env: {
+      ...process.env,
+      BETTER_AUTH_URL: baseURL,
+      NEXT_PUBLIC_APP_URL: baseURL,
+    },
   },
 });

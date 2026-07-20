@@ -5,6 +5,10 @@ why: Established email-service pattern (emailService + templates), localized cha
 ---
 # 06 — Email delivery of results link
 
+**TL;DR — Goal:** Email the buyer a link back to their unlocked results right after payment, sent
+exactly once. **Unlocks:** users don't have to stay on the page to get their images — they can close
+the tab and come back to their results later via email.
+
 > Source plan: `docs/plans/headshot-ai/plan.md` (§5.8). Original PRD: `docs/planning/headshot-ai-prd.md`.
 
 ## What to build
@@ -23,13 +27,13 @@ End-to-end behaviour:
 
 ## Prerequisites
 
-- [ ] **Resend (transactional email)** — shared with slice 01.
+- [x] **Resend (transactional email)** — shared with slice 01.
   - Required input: `RESEND_API_KEY`, `RESEND_FROM_EMAIL`.
   - Verify present: `emailService.sendEmail(...)` delivers to a test inbox.
 
 ## Verification contract (behaviour, in Gherkin)
 
-- [ ] **Scenario: unlocking emails a results link**
+- [x] **Scenario: unlocking emails a results link**
   ```gherkin
   Given a user completes the $5 unlock for their job
   When the unlock is confirmed
@@ -37,7 +41,7 @@ End-to-end behaviour:
   And following the link (while signed in) reaches their downloadable full-resolution images
   ```
 
-- [ ] **Scenario: results email is sent once**
+- [x] **Scenario: results email is sent once**
   ```gherkin
   Given the unlock webhook for a job has already sent the results email
   When the same unlock event is processed again
