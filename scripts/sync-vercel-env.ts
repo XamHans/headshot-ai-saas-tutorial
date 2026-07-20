@@ -9,8 +9,10 @@
  *  - URLs must be https and must not point at localhost
  *
  * Usage:
- *   pnpm env:sync:prod            # validate + sync
- *   pnpm env:sync:prod --dry-run  # validate + show what would be synced
+ *   pnpm env:sync:prod                # validate + sync
+ *   pnpm env:sync:prod --dry-run      # validate + show what would be synced
+ *   pnpm env:sync:prod --test-stripe  # allow Stripe TEST keys (pre-launch e2e
+ *                                     # testing against prod without real charges)
  *
  * Requires a linked Vercel project (`vercel link`). Uses the `vercel` CLI from
  * PATH, or falls back to `pnpm dlx vercel`.
@@ -22,6 +24,9 @@ import { resolve } from 'node:path';
 
 const ROOT = resolve(import.meta.dirname, '..');
 const DRY_RUN = process.argv.includes('--dry-run');
+const TEST_STRIPE = process.argv.includes('--test-stripe');
+
+const STRIPE_KEYS = ['STRIPE_SECRET_KEY', 'NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY', 'STRIPE_WEBHOOK_SECRET'];
 
 // Secrets that must never be reused between dev and production.
 const MUST_DIFFER_FROM_DEV = [
@@ -35,8 +40,8 @@ const MUST_DIFFER_FROM_DEV = [
 
 // key -> required value prefix in production
 const REQUIRED_PREFIXES: Record<string, string[]> = {
-  STRIPE_SECRET_KEY: ['sk_live_'],
-  NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: ['pk_live_'],
+  STRIPE_SECRET_KEY: TEST_STRIPE ? ['sk_test_'] : ['sk_live_'],
+  NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: TEST_STRIPE ? ['pk_test_'] : ['pk_live_'],
   STRIPE_WEBHOOK_SECRET: ['whsec_'],
   DATABASE_URL: ['postgres://', 'postgresql://'],
 };
@@ -97,15 +102,17 @@ for (const [key, value] of Object.entries(prod)) {
     errors.push(`${key} looks like a placeholder: "${value.slice(0, 40)}…"`);
     continue;
   }
-  if (MUST_DIFFER_FROM_DEV.includes(key) && dev[key] && dev[key] === value) {
+  // In --test-stripe mode the Stripe keys are deliberately shared with dev.
+  const stripeTestException = TEST_STRIPE && STRIPE_KEYS.includes(key);
+  if (MUST_DIFFER_FROM_DEV.includes(key) && dev[key] && dev[key] === value && !stripeTestException) {
     errors.push(`${key} is IDENTICAL to your dev value in .env/.env.local — use a production value.`);
   }
   const prefixes = REQUIRED_PREFIXES[key];
   if (prefixes && !prefixes.some((p) => value.startsWith(p))) {
     errors.push(`${key} must start with ${prefixes.join(' or ')} (got "${value.slice(0, 8)}…").`);
   }
-  if (/^(sk|pk)_test_/.test(value)) {
-    errors.push(`${key} is a Stripe TEST key — production needs a live key.`);
+  if (/^(sk|pk)_test_/.test(value) && !TEST_STRIPE) {
+    errors.push(`${key} is a Stripe TEST key — production needs a live key (or pass --test-stripe).`);
   }
   if (URL_KEYS.includes(key)) {
     if (/localhost|127\.0\.0\.1/.test(value)) errors.push(`${key} points at localhost: "${value}"`);
@@ -127,7 +134,15 @@ if (warnings.length > 0) {
 }
 if (errors.length > 0) fail(errors);
 
-console.log(`\n✅ ${keys.length} variables validated (Stripe live keys, no dev value reuse, no localhost URLs).`);
+if (TEST_STRIPE) {
+  console.warn(
+    '\n⚠️  --test-stripe: syncing Stripe TEST keys to production. No real charges are',
+  );
+  console.warn('   possible. Re-run WITHOUT this flag (with live keys) before launch!');
+}
+console.log(
+  `\n✅ ${keys.length} variables validated (${TEST_STRIPE ? 'Stripe TEST keys' : 'Stripe live keys'}, no dev value reuse, no localhost URLs).`,
+);
 
 // --- sync to Vercel -----------------------------------------------------------
 
