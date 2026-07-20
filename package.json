@@ -145,7 +145,7 @@
     "react-hook-form": "^7.54.1",
     "react-resizable-panels": "^2.1.7",
     "resend": "^4.8.0",
-    "sharp": "^0.35.3",
+    "sharp": "^0.34.4",
     "sonner": "^1.7.1",
     "sql.js": "latest",
     "stripe": "^14.12.0",

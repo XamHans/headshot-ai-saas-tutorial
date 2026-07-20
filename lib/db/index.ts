@@ -16,7 +16,7 @@ let db: any = null;
 
 function getDb() {
   if (!db && connectionString) {
-    console.log('Connecting to the database...', connectionString);
+    console.log('Connecting to the database...');
 
     client = postgres(connectionString, { prepare: false });
     db = drizzle(client, { schema });
