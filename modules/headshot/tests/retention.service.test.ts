@@ -101,7 +101,7 @@ describe('HeadshotService retention', () => {
       const result = await service.cleanupExpired();
       expect(result.success).toBe(true);
 
-      const deletedKeys = deleteSpy.mock.calls.map((c) => c[0]);
+      const deletedKeys = deleteSpy.mock.calls.map((c: [string]) => c[0]);
       expect(deletedKeys).toContain(sourceImageKey);
       for (const row of rows) {
         expect(deletedKeys).toContain(row.previewKey);
@@ -132,7 +132,7 @@ describe('HeadshotService retention', () => {
       const result = await service.cleanupExpired();
       expect(result.success).toBe(true);
 
-      const deletedKeys = deleteSpy.mock.calls.map((c) => c[0]);
+      const deletedKeys = deleteSpy.mock.calls.map((c: [string]) => c[0]);
       // The purchased job's full-res keys must never be handed to deleteFile.
       for (const row of rows) {
         expect(deletedKeys).not.toContain(row.fullKey);
@@ -163,7 +163,7 @@ describe('HeadshotService retention', () => {
       const result = await service.cleanupExpired();
       expect(result.success).toBe(true);
 
-      const deletedKeys = deleteSpy.mock.calls.map((c) => c[0]);
+      const deletedKeys = deleteSpy.mock.calls.map((c: [string]) => c[0]);
       expect(deletedKeys).not.toContain(sourceImageKey);
 
       const imgs = await db
@@ -187,7 +187,7 @@ describe('HeadshotService retention', () => {
       const result = await service.deleteUserData(userA);
       expect(result.success).toBe(true);
 
-      const deletedKeys = deleteSpy.mock.calls.map((c) => c[0]);
+      const deletedKeys = deleteSpy.mock.calls.map((c: [string]) => c[0]);
       expect(deletedKeys).toContain(sourceImageKey);
       for (const row of rows) {
         expect(deletedKeys).toContain(row.previewKey);
@@ -222,7 +222,7 @@ describe('HeadshotService retention', () => {
       const result = await service.deleteUserData(userA);
       expect(result.success).toBe(true);
 
-      const deletedKeys = deleteSpy.mock.calls.map((c) => c[0]);
+      const deletedKeys = deleteSpy.mock.calls.map((c: [string]) => c[0]);
       // User B's keys must never be deleted.
       expect(deletedKeys).not.toContain(theirs.sourceImageKey);
       for (const row of theirs.rows) {
