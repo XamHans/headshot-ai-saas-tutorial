@@ -1,5 +1,6 @@
 import { Suspense } from 'react';
 import { requireVerifiedConsented } from '@/lib/auth/gate';
+import { DeleteMyData } from './components/delete-my-data';
 import { HeadshotFlow } from './components/headshot-flow';
 
 // Gated generation flow. The slice-01 gate redirects unauthenticated /
@@ -20,6 +21,15 @@ export default async function HeadshotPage() {
       <Suspense fallback={null}>
         <HeadshotFlow />
       </Suspense>
+
+      <div className="mt-4 flex flex-col gap-2 border-t pt-6">
+        <h2 className="text-sm font-semibold">Your data</h2>
+        <p className="text-sm text-muted-foreground">
+          We automatically delete source photos and unpurchased previews after 30 days. You can also
+          delete everything now.
+        </p>
+        <DeleteMyData />
+      </div>
     </div>
   );
 }

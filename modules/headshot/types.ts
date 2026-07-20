@@ -76,3 +76,19 @@ export interface GenerateSetResult {
   job: HeadshotJob;
   previews: HeadshotPreviewDTO[];
 }
+
+/** Summary of an automatic 30-day retention sweep. */
+export interface CleanupResult {
+  /** Number of expired, un-purchased jobs swept. */
+  jobsSwept: number;
+  /** Number of R2 objects successfully deleted. */
+  keysDeleted: number;
+}
+
+/** Summary of a user-initiated "delete my data" action. */
+export interface DeleteUserDataResult {
+  /** Number of the user's job rows removed. */
+  jobsDeleted: number;
+  /** Number of R2 objects successfully deleted. */
+  keysDeleted: number;
+}

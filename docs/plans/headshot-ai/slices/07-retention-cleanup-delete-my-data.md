@@ -28,7 +28,7 @@ End-to-end behaviour:
 
 ## Prerequisites
 
-- [ ] **Scheduled-job mechanism** — runs the 30-day cleanup.
+- [x] **Scheduled-job mechanism** — runs the 30-day cleanup.
   - Required input: a scheduler. *Default:* **Vercel Cron** hitting an authenticated internal cleanup route
     (protected by a cron secret), since the app targets Vercel. Override to another scheduler/queue if the
     deployment differs. Required input for the default: `CRON_SECRET`.
@@ -37,7 +37,7 @@ End-to-end behaviour:
 
 ## Verification contract (behaviour, in Gherkin)
 
-- [ ] **Scenario: 30-day cleanup deletes source + unpurchased outputs**
+- [x] **Scenario: 30-day cleanup deletes source + unpurchased outputs**
   ```gherkin
   Given a job older than 30 days that was never unlocked
   When the scheduled cleanup runs
@@ -45,7 +45,7 @@ End-to-end behaviour:
   And the job's stored image keys no longer resolve
   ```
 
-- [ ] **Scenario: purchased images survive the cleanup**
+- [x] **Scenario: purchased images survive the cleanup**
   ```gherkin
   Given an unlocked (purchased) job older than 30 days
   When the scheduled cleanup runs
@@ -53,7 +53,7 @@ End-to-end behaviour:
   And the user can still download them
   ```
 
-- [ ] **Scenario: user deletes their own data**
+- [x] **Scenario: user deletes their own data**
   ```gherkin
   Given a signed-in user with source photos and generated images
   When they invoke "delete my data" and confirm
@@ -61,7 +61,7 @@ End-to-end behaviour:
   And their headshot records are removed
   ```
 
-- [ ] **Scenario: cleanup endpoint rejects unauthenticated triggers**
+- [x] **Scenario: cleanup endpoint rejects unauthenticated triggers**
   ```gherkin
   Given the scheduled cleanup endpoint
   When it is called without the valid cron secret
@@ -69,7 +69,7 @@ End-to-end behaviour:
   And no deletion occurs
   ```
 
-- [ ] **Scenario: deletion is scoped to the acting user**
+- [x] **Scenario: deletion is scoped to the acting user**
   ```gherkin
   Given two users each with headshot data
   When one user invokes "delete my data"
