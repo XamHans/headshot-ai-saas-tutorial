@@ -13,6 +13,7 @@
     "db:seed": "tsx lib/db/scripts/seed.ts",
     "db:studio": "drizzle-kit studio",
     "db:push": "npx drizzle-kit push",
+    "env:sync:prod": "tsx scripts/sync-vercel-env.ts",
     "test": "vitest",
     "test:verbose": "LOG_LEVEL=debug vitest",
     "test:silent": "LOG_LEVEL=silent vitest",
